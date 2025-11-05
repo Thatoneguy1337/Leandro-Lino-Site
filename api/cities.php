@@ -1,6 +1,5 @@
 <?php
 // api/cities.php
-echo "PHP está funcionando!"
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 
