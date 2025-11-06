@@ -1,116 +1,185 @@
-/* Mapa Lino — Service Worker (simples, “app feel”) */
-const VERSION = 'v1.0.2';
-const APP_CACHE = `mapalino-app-${VERSION}`;
-const RUNTIME_CACHE = `mapalino-run-${VERSION}`;
-const OFFLINE_FALLBACK_PAGE = 'offline.html';
+/* GeoViewer Pro — Service Worker (Cache Agressivo + Performance Máxima) */
+const VERSION = 'v2.0.0';
+const CORE_CACHE = `geoviewer-core-${VERSION}`;
+const RUNTIME_CACHE = `geoviewer-runtime-${VERSION}`;
 
-const CORE_ASSETS = [
+// ✅ CACHE CRÍTICO - Recursos que bloqueiam a renderização
+const IMMEDIATE_ASSETS = [
   './',
   'index.html',
+  'assets/styles.css',
+  'assets/img/image.png',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+];
+
+// ✅ CACHE SECUNDÁRIO - Recursos importantes mas não bloqueantes
+const LAZY_ASSETS = [
   'admin.html',
   'offline.html',
   'manifest.webmanifest',
-  'assets/styles.css',
-  'assets/script.js',
-  'assets/img/image.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'
 ];
 
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing version:', VERSION);
+  
   event.waitUntil(
-    caches.open(APP_CACHE)
-      .then((cache) => cache.addAll(CORE_ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CORE_CACHE)
+      .then((cache) => {
+        // Cache apenas os recursos IMEDIATOS durante a instalação
+        return cache.addAll(IMMEDIATE_ASSETS);
+      })
+      .then(() => {
+        // ⚡ Pula a fase de waiting - ativa imediatamente
+        return self.skipWaiting();
+      })
+      .catch((err) => {
+        console.log('[SW] Install failed:', err);
+      })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys
-      .filter((k) => k !== APP_CACHE && k !== RUNTIME_CACHE)
-      .map((k) => caches.delete(k)));
-    await self.clients.claim();
-  })());
+  console.log('[SW] Activating version:', VERSION);
+  
+  event.waitUntil(
+    Promise.all([
+      // Limpa caches antigos
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys
+            .filter(key => key !== CORE_CACHE && key !== RUNTIME_CACHE)
+            .map(key => {
+              console.log('[SW] Deleting old cache:', key);
+              return caches.delete(key);
+            })
+        );
+      }),
+      
+      // Pré-cache recursos lazy em background
+      caches.open(CORE_CACHE).then(cache => {
+        return cache.addAll(LAZY_ASSETS).catch(err => {
+          console.log('[SW] Lazy cache failed (non-critical):', err);
+        });
+      }),
+      
+      // ⚡ Assume controle imediato de todas as tabs
+      self.clients.claim()
+    ])
+  );
 });
 
-/* -------- Estratégias corrigidas -------- */
+/* -------- ESTRATÉGIAS DE CACHE ULTRA-RÁPIDAS -------- */
+
+// ✅ Cache-First para recursos estáticos (mais rápido)
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+  
+  try {
+    const fresh = await fetch(request);
+    if (fresh.ok) {
+      const cache = await caches.open(RUNTIME_CACHE);
+      cache.put(request, fresh.clone()).catch(() => {});
+    }
+    return fresh;
+  } catch (err) {
+    // Fallback genérico para CSS/JS
+    if (request.destination === 'style' || request.destination === 'script') {
+      return new Response('/* Fallback */', { 
+        status: 200, 
+        headers: { 'Content-Type': 'text/css' } 
+      });
+    }
+    throw err;
+  }
+}
+
+// ✅ Network-First apenas para HTML
 async function networkFirst(request) {
   try {
     const fresh = await fetch(request);
-    // só cacheia GET bem-sucedido
-    if (request.method === 'GET') {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, fresh.clone());
-    }
+    const cache = await caches.open(RUNTIME_CACHE);
+    cache.put(request, fresh.clone()).catch(() => {});
     return fresh;
-  } catch {
+  } catch (err) {
     const cached = await caches.match(request);
-    return cached || await caches.match(OFFLINE_FALLBACK_PAGE) ||
-           new Response('', { status: 504, statusText: 'Offline' });
+    if (cached) return cached;
+    
+    // Fallback para navegação
+    if (request.mode === 'navigate') {
+      return caches.match('./offline.html');
+    }
+    
+    throw err;
   }
 }
 
+// ✅ Stale-While-Revalidate otimizado (não bloqueia resposta)
 async function staleWhileRevalidate(request) {
-  // ignora requisições de extensões ou protocolos não http/https
-  const url = request.url;
-  if (!url.startsWith('http')) {
-    return fetch(request).catch(() => Response.error());
-  }
-
   const cache = await caches.open(RUNTIME_CACHE);
   const cached = await cache.match(request);
-
-  const fetching = fetch(request)
-    .then((resp) => {
-      // só guarda respostas válidas (status 200, tipo basic)
-      if (resp && resp.ok && resp.type === 'basic') {
-        cache.put(request, resp.clone()).catch(() => {});
+  
+  // ⚡ Retorna cached imediatamente, atualiza em background
+  const fetchPromise = fetch(request)
+    .then(async (response) => {
+      if (response.ok) {
+        await cache.put(request, response).catch(() => {});
       }
-      return resp;
+      return response;
     })
-    .catch(() => null);
+    .catch(() => {}); // Silencia erros de atualização
 
-  return cached || fetching || Response.error();
+  // Não espera pela network - retorna cached ou faz fetch
+  return cached || fetchPromise || Response.error();
 }
 
-
-/* -------- Fetch handler com bypass e só-GET -------- */
+/* -------- ROTEAMENTO INTELIGENTE -------- */
 self.addEventListener('fetch', (event) => {
-  const req = event.request;
+  const { request } = event;
+  const url = new URL(request.url);
 
-  // 0) Nunca intercepta nada que não seja GET
-  if (req.method !== 'GET') {
-    event.respondWith(fetch(req));
+  // 🔥 BYPASS COMPLETO para APIs e recursos dinâmicos
+  const shouldBypass = 
+    request.method !== 'GET' ||
+    url.origin.includes('open-meteo.com') ||
+    url.origin.includes('geocode.maps.co') ||
+    url.origin.includes('maps.co') ||
+    url.pathname.includes('/api/') ||
+    url.search.includes('nocache=true');
+
+  if (shouldBypass) {
+    event.respondWith(fetch(request));
     return;
   }
 
-  const url = new URL(req.url);
-  const isHTML = req.mode === 'navigate' || req.destination === 'document';
+  // 🎯 Estratégias específicas por tipo de recurso
+  switch (true) {
+    // HTML - Sempre fresco
+    case request.mode === 'navigate':
+      event.respondWith(networkFirst(request));
+      break;
 
-  // 1) Bypass para APIs de terceiros (evita CORS + “Failed to convert value to 'Response'”)
-  const isThirdPartyAPI =
-    url.origin !== self.location.origin &&
-    (
-      url.hostname.includes('open-meteo.com') ||
-      url.hostname.includes('maps.co') ||
-      url.hostname.includes('nominatim') ||
-      url.hostname.includes('geocode')   // ajuste se usar outro provedor
-    );
+    // CSS/JS/Imagens - Cache agressivo
+    case request.destination === 'style':
+    case request.destination === 'script':
+    case request.destination === 'image':
+      event.respondWith(cacheFirst(request));
+      break;
 
-  if (isThirdPartyAPI) {
-    event.respondWith(fetch(req)); // não cacheia, não toca
-    return;
+    // Fontes e outros - SWR
+    default:
+      event.respondWith(staleWhileRevalidate(request));
   }
+});
 
-  // 2) HTML: network-first com fallback offline
-  if (isHTML) {
-    event.respondWith(networkFirst(req));
-    return;
+/* -------- MENSAGENS PARA ATUALIZAÇÃO -------- */
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
   }
-
-  // 3) Demais assets: SWR
-  event.respondWith(staleWhileRevalidate(req));
 });

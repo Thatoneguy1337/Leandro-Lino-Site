@@ -8,7 +8,7 @@
 
    🔧 Atualizações (out/2025)
    - FIX: Ocultar linhas passa a ocultar apenas polylines (sem afetar postos/números)
-   - FIX: Removidos halos/destaques ao ocultar linhas (não ficam “linhas fantasmas”)
+   - FIX: Removidos halos/destaques ao ocultar linhas (não ficam "linhas fantasmas")
    - FIX: Duplicação de attachLineTooltip/addLayer em polylines
    - UX: Carregamento inicial mostra só as linhas; postos aparecem após o primeiro zoom do usuário
    - CACHE: Prefetch dos KML/KMZ com Cache Storage (cache-first com fallback de rede)
@@ -16,15 +16,25 @@
    ========================================================= */
 
 /* ---------- Parâmetros de performance ---------- */
-const Z_MARKERS_ON   = 15; // exibir marcadores a partir deste zoom
-const Z_LABELS_ON    = 12; // exibir labels (tooltips) a partir deste zoom
-const CHUNK_SIZE     = 1000; // tamanho do lote no parse (↑ para menos overhead)
-const LINE_SMOOTH    = 2.0; // suavização visual das polylines (Leaflet)
-const LINE_BASE_W = 4;      // base mais grossa
-const LINE_MAX_W  = 6;      // teto em zoom alto
-const Z_POST_TEXT_ON   = 14;   // ou 15/16 se preferir ainda mais leve
-const MAX_POST_LABELS  = 100;  // teto global de labels simultâneos
-const LABEL_GRID_PX    = 96;   // tamanho da célula de amostragem na tela
+// script.js - VERSÃO COMPLETA COM SISTEMA DE CACHE
+const Z_MARKERS_ON   = 15;
+const Z_LABELS_ON    = 12;
+const CHUNK_SIZE     = 1000;
+const LINE_SMOOTH    = 2.0;
+const LINE_BASE_W = 4;
+const LINE_MAX_W  = 6;
+const Z_POST_TEXT_ON   = 14;
+const MAX_POST_LABELS  = 100;
+const LABEL_GRID_PX    = 96;
+const MAX_STATUS_LEN = 40;
+
+/* ========================
+   SISTEMA DE CACHE CLIENTE
+   ======================== */
+const UPLOAD_CACHE_KEY = 'gv_last_uploads_v3';
+const MAP_STATE_KEY = 'gv_map_state_v3';
+const LAST_SESSION_KEY = 'gv_last_session_v2';
+const API_CITIES = 'api/cities.php';
 
 /* ----------------- Utils ----------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -32,53 +42,611 @@ const statusEl = $("#statusText"),
       coordsEl = $("#coordinates");
 const loadingEl = $("#loadingOverlay"),
       loadingTxt = $("#loadingText");
-// SUBSTITUIR a sua setStatus por esta:
-// Máximo de 40 caracteres no rodapé
-const MAX_STATUS_LEN = 40;
 
-// SUBSTITUIR sua setStatus por esta:
 const setStatus = (m) => {
   if (!statusEl) return;
   const raw = String(m ?? '').trim();
-
-  // silencia a msg “não encontrei essa sua cidade…”
   if (/não encontrei essa sua cidade/i.test(raw)) return;
-
   const short = raw.length > MAX_STATUS_LEN
     ? raw.slice(0, MAX_STATUS_LEN - 1).trimEnd() + '…'
     : raw;
-
   statusEl.textContent = short;
-  statusEl.title = raw; // mostra o texto completo no hover (opcional)
+  statusEl.title = raw;
 };
-
 
 const showLoading = (on, msg = "Processando...") => {
   if (!loadingEl) return;
   loadingEl.classList.toggle("show", !!on);
   if (msg && loadingTxt) loadingTxt.textContent = msg;
 };
-const timeoutFetch = (url, opts = {}, ms = 10000) => {
+
+const timeoutFetch = (url, opts = {}, ms = 15000) => {
   const c = new AbortController();
   const id = setTimeout(() => c.abort(), ms);
   return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(id));
 };
+
 const prettyCityFromFilename = (name = "") => {
   const base = String(name).split("/").pop().replace(/\.[^.]+$/, "");
   return base.replace(/[_-]+/g, " ").replace(/[^\p{L}\p{N}\s]/gu, "")
     .trim().toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
 };
 
-/* >>>>>>> Prefixo + códigos ARA persistentes (para AGRUPAR LINHAS) <<<<<<< */
-const LS_KEYCODES = 'gv_keycodes_v1';   // mapa "prefix:lat,lng" -> ARA01/PAI01…
-const LS_PREFIXSEQ = 'gv_prefix_seq_v1';// contador por prefixo
+/* ========================
+   CACHE DE ÚLTIMOS UPLOADS
+   ======================== */
+
+// Salvar upload no cache
+async function saveRecentUpload(uploadInfo) {
+    try {
+        const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
+        const filtered = cache.filter(item => item.file_path !== uploadInfo.file_path);
+        filtered.unshift({
+            ...uploadInfo,
+            cached_at: Date.now(),
+            client_cache: true
+        });
+        const limited = filtered.slice(0, 5);
+        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
+        console.log('✅ Upload salvo no cache:', uploadInfo.file_name);
+        renderRecentUploadsPanel();
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao salvar upload:', error);
+        return false;
+    }
+}
+
+// Obter uploads do cache
+function getRecentUploads() {
+    try {
+        const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
+        const now = Date.now();
+        const fresh = cache.filter(item => now - (item.cached_at || 0) < 7 * 24 * 60 * 60 * 1000);
+        if (fresh.length !== cache.length) {
+            localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(fresh));
+        }
+        return fresh;
+    } catch {
+        return [];
+    }
+}
+
+// Salvar estado da sessão
+function saveSessionState() {
+    if (!map) return;
+    
+    const state = {
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        bounds: map.getBounds().toBBoxString(),
+        timestamp: Date.now(),
+        currentFile: currentFile?.textContent || '',
+        visibleLayers: getVisibleLayers(),
+        visiblePosts: getVisiblePosts(),
+        mapView: {
+            center: [map.getCenter().lat, map.getCenter().lng],
+            zoom: map.getZoom()
+        }
+    };
+    
+    localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
+}
+
+// Restaurar última sessão
+function restoreLastSession() {
+    try {
+        const saved = localStorage.getItem(LAST_SESSION_KEY);
+        if (!saved) return false;
+        
+        const state = JSON.parse(saved);
+        if (Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
+            localStorage.removeItem(LAST_SESSION_KEY);
+            return false;
+        }
+        
+        if (state.mapView && state.mapView.center) {
+            map.setView(state.mapView.center, state.mapView.zoom, { animate: false });
+        }
+        
+        if (state.currentFile && currentFile) {
+            currentFile.textContent = state.currentFile;
+        }
+        
+        setStatus('🔄 Sessão anterior restaurada');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro ao restaurar sessão:', error);
+        return false;
+    }
+}
+
+// Obter layers visíveis
+function getVisibleLayers() {
+    const visible = [];
+    if (window.order && window.groups) {
+        window.order.forEach(name => {
+            if (window.groups[name] && map.hasLayer(window.groups[name])) {
+                visible.push(name);
+            }
+        });
+    }
+    return visible;
+}
+
+// Obter posts visíveis
+function getVisiblePosts() {
+    const visible = [];
+    if (window.postOrder && window.postGroups) {
+        window.postOrder.forEach(name => {
+            if (window.postGroups[name] && map.hasLayer(window.postGroups[name])) {
+                visible.push(name);
+            }
+        });
+    }
+    return visible;
+}
+
+/* ========================
+   INTEGRAÇÃO COM API
+   ======================== */
+
+// Obter últimos uploads do servidor
+async function getServerLastUploads(limit = 5) {
+    try {
+        const response = await timeoutFetch(`${API_CITIES}?action=last_uploads&limit=${limit}`);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (data.ok && data.data) return data.data;
+        throw new Error('Resposta inválida');
+    } catch (error) {
+        console.warn('❌ Não foi possível obter últimos uploads:', error);
+        return [];
+    }
+}
+
+// Obter último upload do servidor
+async function getServerLastUpload() {
+    try {
+        const response = await timeoutFetch(`${API_CITIES}?action=last_upload`);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (data.ok && data.data) return data.data;
+        return null;
+    } catch (error) {
+        console.warn('❌ Não foi possível obter último upload:', error);
+        return null;
+    }
+}
+
+// Carregar último upload automaticamente
+async function loadLastUploadAuto() {
+    setStatus('🔄 Restaurando última sessão...');
+    showLoading(true, 'Restaurando última sessão');
+    
+    try {
+        const sessionRestored = restoreLastSession();
+        if (sessionRestored) {
+            showLoading(false);
+            return true;
+        }
+        
+        const serverUpload = await getServerLastUpload();
+        if (serverUpload) {
+            const success = await loadCachedUpload(
+                serverUpload.file_path, 
+                serverUpload.file_name, 
+                serverUpload.city_name,
+                true
+            );
+            if (success) {
+                await saveRecentUpload(serverUpload);
+                return true;
+            }
+        }
+        
+        const localUploads = getRecentUploads();
+        if (localUploads.length > 0) {
+            const success = await loadCachedUpload(
+                localUploads[0].file_path,
+                localUploads[0].file_name,
+                localUploads[0].city_name,
+                true
+            );
+            return success;
+        }
+        
+        setStatus('💡 Faça upload de um arquivo para começar');
+        return false;
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar último upload:', error);
+        setStatus('❌ Erro ao restaurar sessão');
+        return false;
+    } finally {
+        showLoading(false);
+    }
+}
+
+/* ========================
+   SISTEMA DE UPLOAD COM CACHE
+   ======================== */
+
+// Upload com cache
+async function handleFileUploadWithCache(file, cityId = null, cityName = null) {
+    const isKmz = file.name.toLowerCase().endsWith('.kmz');
+    const cityHint = cityName || prettyCityFromFilename(file.name);
+    
+    setStatus(`📤 Enviando ${file.name}...`);
+    showLoading(true, `Enviando ${file.name}`);
+    
+    try {
+        const formData = new FormData();
+        
+        if (cityId) {
+            formData.append('action', 'upload');
+            formData.append('id', cityId);
+        } else {
+            formData.append('action', 'create');
+            formData.append('name', cityHint);
+        }
+        
+        formData.append('file', file);
+        
+        const response = await timeoutFetch(API_CITIES, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || 'Erro no upload');
+        
+        // Salva no cache
+        const uploadInfo = {
+            city_id: result.data.id,
+            city_name: result.data.name,
+            file_name: file.name,
+            file_path: result.data.file?.url || `/uploads/cities/${result.data.id}/${file.name}`,
+            file_size: file.size,
+            file_type: file.name.split('.').pop().toLowerCase(),
+            uploaded_at: Date.now(),
+            placemarks_count: result.processing?.placemarks || 0,
+            server_response: result,
+            file_exists: true
+        };
+        
+        await saveRecentUpload(uploadInfo);
+        saveSessionState();
+        
+        setStatus(`✅ ${file.name} enviado e salvo no cache`);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Erro no upload:', error);
+        let errorMessage = `Erro ao enviar: ${error.message}`;
+        if (error.name === 'AbortError') errorMessage = 'Tempo esgotado';
+        setStatus(`❌ ${errorMessage}`);
+        throw error;
+    } finally {
+        showLoading(false);
+    }
+}
+
+/* ========================
+   CARREGAMENTO DE ARQUIVOS
+   ======================== */
+
+// Carregar upload do cache
+async function loadCachedUpload(filePath, fileName, cityName, autoLoad = false) {
+    try {
+        setStatus(`🔄 Carregando ${fileName}...`);
+        if (!autoLoad) showLoading(true, `Carregando ${fileName}`);
+        
+        const fullPath = filePath.startsWith('/') ? filePath : `/uploads/cities/${filePath}`;
+        const response = await timeoutFetch(fullPath);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const isKmz = fileName.toLowerCase().endsWith('.kmz');
+        
+        if (isKmz) {
+            const blob = await response.blob();
+            const file = new File([blob], fileName, { 
+                type: 'application/vnd.google-earth.kmz' 
+            });
+            
+            if (typeof loadKMZ === 'function') {
+                await loadKMZ(file);
+            } else {
+                throw new Error('loadKMZ não disponível');
+            }
+        } else {
+            const text = await response.text();
+            if (typeof parseKML === 'function') {
+                await parseKML(text, cityName);
+            } else {
+                throw new Error('parseKML não disponível');
+            }
+        }
+        
+        if (currentFile) {
+            currentFile.textContent = `${fileName} (${cityName})`;
+        }
+        
+        // Atualiza cache
+        const uploads = getRecentUploads();
+        const currentUpload = uploads.find(u => u.file_name === fileName);
+        if (currentUpload) {
+            const filtered = uploads.filter(u => u.file_name !== fileName);
+            filtered.unshift({ 
+                ...currentUpload, 
+                uploaded_at: Date.now(),
+                last_loaded: Date.now()
+            });
+            localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
+        }
+        
+        saveSessionState();
+        setStatus(`✅ ${fileName} carregado`);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar:', error);
+        if (!autoLoad) setStatus(`❌ Erro ao carregar ${fileName}`);
+        
+        // Remove do cache se erro
+        const uploads = getRecentUploads();
+        const filtered = uploads.filter(u => u.file_name !== fileName);
+        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
+        renderRecentUploadsPanel();
+        
+        return false;
+    } finally {
+        if (!autoLoad) showLoading(false);
+    }
+}
+
+/* ========================
+   UI PARA UPLOADS RECENTES
+   ======================== */
+
+// Renderizar painel de uploads
+function renderRecentUploadsPanel() {
+    const uploads = getRecentUploads();
+    if (uploads.length === 0) return;
+    
+    let panel = document.getElementById('recentUploadsPanel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'recentUploadsPanel';
+        panel.className = 'panel-section';
+        panel.innerHTML = `
+            <h2>📁 Uploads Recentes</h2>
+            <div class="cache-info">Últimos arquivos carregados</div>
+            <div id="recentUploadsList" class="list-card"></div>
+            <div class="row gap" style="margin-top: 8px;">
+                <button onclick="clearUploadsCache()" class="btn link small">🗑️ Limpar</button>
+                <button onclick="refreshUploadsCache()" class="btn link small">🔄 Atualizar</button>
+            </div>
+        `;
+        
+        const citiesSection = document.querySelector('.panel-section');
+        if (citiesSection) {
+            citiesSection.parentNode.insertBefore(panel, citiesSection.nextSibling);
+        }
+    }
+    
+    const list = document.getElementById('recentUploadsList');
+    list.innerHTML = uploads.map((upload, index) => {
+        const timeAgo = getTimeAgo(upload.uploaded_at);
+        const isRecent = Date.now() - upload.uploaded_at < 24 * 60 * 60 * 1000;
+        
+        return `
+            <div class="city-item ${isRecent ? 'recent-upload' : ''}">
+                <div class="city-info">
+                    <div class="city-name">
+                        ${upload.file_name}
+                        ${index === 0 ? '<span title="Último">🔄</span>' : ''}
+                        ${upload.client_cache ? '<span title="Cache local">💾</span>' : ''}
+                    </div>
+                    <small class="muted">
+                        ${upload.city_name} • 
+                        ${upload.placemarks_count ? upload.placemarks_count + ' postos • ' : ''}
+                        ${timeAgo}
+                    </small>
+                </div>
+                <button class="btn primary small" 
+                        onclick="loadCachedUpload('${upload.file_path}', '${upload.file_name}', '${upload.city_name}')"
+                        title="Carregar">
+                    Carregar
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+// Limpar cache
+function clearUploadsCache() {
+    if (confirm('Limpar cache de uploads?')) {
+        localStorage.removeItem(UPLOAD_CACHE_KEY);
+        localStorage.removeItem(LAST_SESSION_KEY);
+        const panel = document.getElementById('recentUploadsPanel');
+        if (panel) panel.remove();
+        setStatus('🗑️ Cache limpo');
+    }
+}
+
+// Atualizar cache
+async function refreshUploadsCache() {
+    setStatus('🔄 Atualizando cache...');
+    try {
+        const serverUploads = await getServerLastUploads(10);
+        const localUploads = getRecentUploads();
+        const mergedUploads = [...serverUploads, ...localUploads];
+        
+        const uniqueUploads = [];
+        const seen = new Set();
+        mergedUploads.forEach(upload => {
+            const key = upload.file_path + upload.file_name;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueUploads.push(upload);
+            }
+        });
+        
+        uniqueUploads.sort((a, b) => (b.uploaded_at || 0) - (a.uploaded_at || 0));
+        const limited = uniqueUploads.slice(0, 5);
+        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
+        renderRecentUploadsPanel();
+        setStatus(`✅ Cache atualizado (${limited.length} arquivos)`);
+        
+    } catch (error) {
+        console.error('❌ Erro ao atualizar cache:', error);
+        setStatus('❌ Erro ao atualizar cache');
+    }
+}
+
+// Helper para tempo
+function getTimeAgo(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'agora';
+    if (minutes < 60) return `${minutes} min atrás`;
+    if (hours < 24) return `${hours} h atrás`;
+    if (days < 7) return `${days} dia${days > 1 ? 's' : ''} atrás`;
+    return new Date(timestamp).toLocaleDateString('pt-BR');
+}
+
+/* ========================
+   INICIALIZAÇÃO DO CACHE
+   ======================== */
+
+// Inicializar sistema
+async function initializeCacheSystem() {
+    console.log('🚀 Iniciando sistema de cache...');
+    setupAutoSave();
+    
+    setTimeout(async () => {
+        const loaded = await loadLastUploadAuto();
+        if (!loaded) console.log('ℹ️ Nenhuma sessão anterior');
+    }, 1000);
+    
+    setTimeout(() => {
+        renderRecentUploadsPanel();
+        refreshUploadsCache().catch(console.error);
+    }, 2000);
+    
+    setInterval(() => {
+        refreshUploadsCache().catch(console.error);
+    }, 5 * 60 * 1000);
+}
+
+// Configurar salvamento automático
+function setupAutoSave() {
+    if (!map) return;
+    
+    let saveTimeout;
+    function scheduleSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveSessionState, 2000);
+    }
+    
+    map.on('moveend', scheduleSave);
+    map.on('zoomend', scheduleSave);
+    map.on('layeradd', scheduleSave);
+    map.on('layerremove', scheduleSave);
+    
+    window.addEventListener('beforeunload', saveSessionState);
+}
+
+/* ========================
+   INTEGRAÇÃO COM SISTEMA EXISTENTE
+   ======================== */
+
+// Sistema de cidades
+let _cities = [];
+
+async function apiListCities() {
+    try {
+        const response = await timeoutFetch(`${API_CITIES}?action=list`);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Erro na API');
+        _cities = data.data || [];
+        return _cities;
+    } catch (error) {
+        console.error('❌ Erro ao listar cidades:', error);
+        throw error;
+    }
+}
+
+async function loadCityOnMap(id) {
+    try {
+        const city = _cities.find(c => c.id === id);
+        if (!city) throw new Error('Cidade não encontrada');
+        if (!city.file || !city.file.url) throw new Error('Cidade sem arquivo');
+        
+        setStatus(`📥 Carregando ${city.name}...`);
+        showLoading(true, `Carregando ${city.name}`);
+        
+        const url = city.file.url;
+        const isKmz = url.toLowerCase().endsWith('.kmz');
+        const response = await timeoutFetch(url);
+        if (!response.ok) throw new Error('Falha ao baixar');
+        
+        if (isKmz) {
+            const blob = await response.blob();
+            const file = new File([blob], city.file.name, { 
+                type: 'application/vnd.google-earth.kmz' 
+            });
+            await handleFileUploadWithCache(file, city.id, city.name);
+        } else {
+            const text = await response.text();
+            if (typeof parseKML === 'function') {
+                await parseKML(text, city.name);
+                const uploadInfo = {
+                    city_id: city.id,
+                    city_name: city.name,
+                    file_name: city.file.name,
+                    file_path: url,
+                    file_size: city.file.size || 0,
+                    file_type: 'kml',
+                    uploaded_at: Date.now(),
+                    placemarks_count: 0,
+                    file_exists: true
+                };
+                await saveRecentUpload(uploadInfo);
+            }
+        }
+        
+        setStatus(`✅ ${city.name} carregada`);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar cidade:', error);
+        setStatus(`❌ Erro: ${error.message}`);
+        throw error;
+    } finally {
+        showLoading(false);
+    }
+}
+
+/* ========================
+   CÓDIGO ORIGINAL (CONTINUAÇÃO)
+   ======================== */
+
+const LS_KEYCODES = 'gv_keycodes_v1';
+const LS_PREFIXSEQ = 'gv_prefix_seq_v1';
 const keycodes = JSON.parse(localStorage.getItem(LS_KEYCODES) || '{}');
 const prefixSeq = JSON.parse(localStorage.getItem(LS_PREFIXSEQ) || '{}');
 
-/* --- Índice local p/ busca por chave/nome --- */
 const localIndex = {
-  points: [],   // {name, code, lat, lon}
-  groups: []    // {name, lat, lon, bbox: L.LatLngBounds}
+  points: [],
+  groups: []
 };
 
 function saveCodes() {
@@ -89,8 +657,15 @@ function saveCodes() {
 function stripAccents(s='') {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
+
 function cityToPrefix(city='') {
-  const map = { 'Belo Horizonte':'BHZ','São Paulo':'SAO','Rio De Janeiro':'RIO','Porto Alegre':'POA','Belo Horizonte - Mg':'BHZ' };
+  const map = { 
+    'Belo Horizonte':'BHZ',
+    'São Paulo':'SAO',
+    'Rio De Janeiro':'RIO',
+    'Porto Alegre':'POA',
+    'Belo Horizonte - Mg':'BHZ' 
+  };
   const cTitle = (city||'').trim();
   if (map[cTitle]) return map[cTitle];
   const clean = stripAccents(cTitle).replace(/[^A-Za-z ]/g,'').trim();
@@ -101,7 +676,6 @@ function cityToPrefix(city='') {
   return base.slice(0,3).toUpperCase();
 }
 
-/* ========= A) Utilidades — ler códigos direto do arquivo ========= */
 const FEED_RE = /\b([A-Z]{2,6})\s*[-_:.\s]*0*([0-9]{1,4})\b/i;
 function pad2(n){ return String(n).padStart(2,'0'); }
 function extractFeedFromText(txt) {
@@ -109,6 +683,7 @@ function extractFeedFromText(txt) {
   const m = String(txt).toUpperCase().match(FEED_RE);
   return m ? `${m[1]}${pad2(+m[2])}` : null;
 }
+
 function detectPrefixFromTree(pm) {
   const n = pm.querySelector("name")?.textContent;
   let code = extractFeedFromText(n);
@@ -129,6 +704,7 @@ function detectPrefixFromTree(pm) {
   }
   return null;
 }
+
 function prefixFromFilename(filename = "") {
   const base = filename.split("/").pop().replace(/\.[^.]+$/, "");
   const clean = base.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z ]/g,'').trim();
@@ -137,7 +713,6 @@ function prefixFromFilename(filename = "") {
   return first.slice(0,3).toUpperCase();
 }
 
-/* ========= B) Alimentador do Placemark ========= */
 function getAlim(pm) {
   for (const d of pm.querySelectorAll("ExtendedData Data")) {
     const key = (d.getAttribute("name") || "").toLowerCase();
@@ -161,7 +736,6 @@ function getAlim(pm) {
   return null;
 }
 
-/* ========= C) Código explícito ========= */
 function findFeedCodeInPlacemark(pm) {
   const byName = extractFeedFromText(pm.querySelector("name")?.textContent);
   if (byName) return byName;
@@ -182,7 +756,6 @@ function findFeedCodeInPlacemark(pm) {
   return null;
 }
 
-/* ========= D) Grupo da geometria ========= */
 function decideGroupForGeometry(pm, centroidLatLngOrNull, keyIndex) {
   const explicit = findFeedCodeInPlacemark(pm);
   if (explicit) return explicit;
@@ -196,7 +769,6 @@ function decideGroupForGeometry(pm, centroidLatLngOrNull, keyIndex) {
   return alim || "AUTO";
 }
 
-/* ========= E) Código dos POSTOS automático ========= */
 function getOrCreateKeyCodeAuto(pm, lat, lng, filenameHint = "") {
   const feed = findFeedCodeInPlacemark(pm) || extractFeedFromText(getAlim(pm));
   const prefix = feed ? feed.replace(/\d+$/, "") 
@@ -211,7 +783,6 @@ function getOrCreateKeyCodeAuto(pm, lat, lng, filenameHint = "") {
   return code;
 }
 
-/* ----------------- Logo (fallback local) ----------------- */
 const DEFAULT_LOGO = "assets/img/image.png";
 (() => {
   const src = localStorage.getItem("geoviewer-logo") || DEFAULT_LOGO;
@@ -221,7 +792,6 @@ const DEFAULT_LOGO = "assets/img/image.png";
   $("#favicon") && ($("#favicon").href = src);
 })();
 
-/* ----------------- Tema / Ajuda ----------------- */
 const themeBtn = $("#themeToggle");
 (() => {
   const saved = localStorage.getItem("geoviewer-theme") || "dark";
@@ -235,12 +805,12 @@ themeBtn?.addEventListener("click", () => {
   localStorage.setItem("geoviewer-theme", next);
   themeBtn?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
 });
+
 const dlg = $("#shortcutsDialog");
 $("#openShortcuts")?.addEventListener("click", () => dlg?.showModal());
 $("#closeShortcuts")?.addEventListener("click", () => dlg?.close());
 $("#okShortcuts")?.addEventListener("click", () => dlg?.close());
 
-/* ----------------- Sidebar mobile ----------------- */
 const sidebar = $(".sidebar");
 $("#openSidebar")?.addEventListener("click", () => {
   if (!sidebar) return;
@@ -263,8 +833,6 @@ document.addEventListener("click", (e) => {
   }
 });
 
-/* ==================== PERFORMANCE BLOCKS ==================== */
-/* ---- Simplificação/decimação de caminhos em METROS ---- */
 const SIMPLIFY_TOL_M = 4.0;
 const MAX_POINTS_PER_GEOM = 800;
 const MIN_SKIP_M     = 2.0;
@@ -333,7 +901,6 @@ function simplifyPathMeters(coords, tolM = SIMPLIFY_TOL_M){
   return simp;
 }
 
-/* ---------- LOD para linhas: 3 níveis ---------- */
 const LOD_TOLS = { coarse: 30, mid: 12, fine: SIMPLIFY_TOL_M };
 function buildSimpLevels(coords){
   const fine = simplifyPathMeters(coords, LOD_TOLS.fine);
@@ -370,7 +937,6 @@ function nextIdle(){
   });
 }
 
-/* ----------------- Mapa (Leaflet em Canvas + ajustes) ----------------- */
 const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
@@ -384,9 +950,7 @@ const map = L.map("map", {
   fadeAnimation: false
 });
 
-/* ====== Controlador de bases e botões ====== */
 function makeBaseController(map){
-  // pane de labels
   if(!map.getPane('labels')){
     map.createPane('labels');
     const p = map.getPane('labels');
@@ -394,7 +958,6 @@ function makeBaseController(map){
     p.style.pointerEvents = 'none';
   }
 
-  // bases
   const bases = {
     osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap', maxZoom: 19, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
@@ -407,7 +970,6 @@ function makeBaseController(map){
     })
   };
 
-  // labels para satélite
   const labels = {
     cartoLight: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', {
       pane: 'labels', maxZoom: 20, opacity: 1, attribution: '© CARTO'
@@ -458,18 +1020,15 @@ function makeBaseController(map){
     bTer?.addEventListener('click', () => setBase(baseCur !== 'terrain' ? 'terrain' : 'osm'));
     bIn?.addEventListener('click',  () => map.zoomIn());
     bOut?.addEventListener('click', () => map.zoomOut());
-
-    // 📍 fluxo novo (uma única leitura com animação)
     bLoc?.addEventListener('click', () => { locateOnceAnimated(); });
   }
 
   return { setBase, wireButtons, get current(){ return baseCur; }, bases, labels };
 }
-// instancia os botões/base
+
 const baseCtl = makeBaseController(map);
 baseCtl.wireButtons();
 
-/* ----------------- Busca (local + remoto) ----------------- */
 const searchForm  = $("#searchForm");
 const searchInput = $("#searchInput");
 const searchBtn   = $("#searchBtn");
@@ -506,7 +1065,6 @@ function showResults(on) {
   if (on) positionResults();
 }
 
-// ---------- BUSCA LOCAL ----------
 const KEY_RE = /^([A-Z]{2,6})\s*[-_:.\s]*0*([0-9]{1,4})$/i;
 function isKeyQuery(q) { return KEY_RE.test(q.trim()); }
 function parseKey(q) {
@@ -529,7 +1087,6 @@ function searchLocal(qRaw, limit = 20) {
   }
   const qLower = q.toLowerCase();
 
-  // pontos
   for (const p of (localIndex.points || [])) {
     const name = (p.name || "");
     const code = (p.code || "");
@@ -554,7 +1111,6 @@ function searchLocal(qRaw, limit = 20) {
     }
   }
 
-  // grupos
   for (const g of (localIndex.groups || [])) {
     if (g.name && g.name.toLowerCase().includes(qLower)) {
       const k = `G|${g.name}`;
@@ -613,7 +1169,6 @@ function renderResults(items) {
   showResults(true);
 }
 
-// ---------- GEOCODE REMOTO (fallback) ----------
 async function geocode(queryRaw) {
   const q = norm(queryRaw);
   if (!q) return [];
@@ -690,15 +1245,15 @@ async function handleSearch(e) {
   if (!q || q.length < 2) { renderResults([]); return; }
   const local = searchLocal(q);
   if (local.length === 1) { flyToLocal(local[0]); return; }
-  if (local.length > 1) { renderResults(local); setStatus(`Resultados no mapa para “${q}”`); return; }
-  setStatus(`Buscando “${q}”…`);
+  if (local.length > 1) { renderResults(local); setStatus(`Resultados no mapa para "${q}"`); return; }
+  setStatus(`Buscando "${q}"…`);
   showLoading(true, "Buscando localização…");
   try {
     const remote = rankResults(await geocode(q));
     showLoading(false);
     if (remote.length === 1) { flyToResult(remote[0]); return; }
     renderResults(remote);
-    setStatus(remote.length ? `Resultados para “${q}”` : `Nada encontrado para “${q}”`);
+    setStatus(remote.length ? `Resultados para "${q}"` : `Nada encontrado para "${q}"`);
   } catch (err) {
     console.error("[search] erro:", err);
     showLoading(false);
@@ -706,19 +1261,18 @@ async function handleSearch(e) {
     setStatus("Erro ao buscar localização");
   }
 }
-// listeners (apenas uma vez)
+
 searchForm?.addEventListener("submit", handleSearch);
 searchBtn?.addEventListener("click", handleSearch);
 searchInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") handleSearch(e); });
 
-// 🔹 Sugestões em tempo real (apenas busca local)
 let _suggTimer = null;
 searchInput?.addEventListener('input', () => {
   clearTimeout(_suggTimer);
   const q = (searchInput.value || '').trim();
   if (q.length < 2) { showResults(false); searchResults.innerHTML = ''; return; }
   _suggTimer = setTimeout(() => {
-    const items = searchLocal(q, 12); // até 12 sugestões locais
+    const items = searchLocal(q, 12);
     renderResults(items);
   }, 120);
 });
@@ -738,7 +1292,6 @@ const fileInput = $("#fileInput"),
       dropZone = $("#dropZone"),
       currentFile = $("#currentFile");
 
-/* PAINÉIS */
 const layersListLines = $("#layersList") || null;
 const layersListPosts = $("#postsLayersList") || null;
 const hideAllBtn = $("#hideAllLayers"),
@@ -763,23 +1316,19 @@ let routeLayer = null;
 const lod = { keysContainer: null, keysRawGroup: null, keysVisible: false, blockMarkersUntilZoom: true };
 const hasCluster = typeof L.markerClusterGroup === "function";
 
-/* ---------- Destaque (linha + postos) ---------- */
 const highlight = { line:null, oldStyle:null, halo:null, markers:[] };
 let allPostMarkers = [];
 
 const nextColor = (n) => colors[n] ?? (colors[n] = palette[pIdx++ % palette.length]);
 function resetGroups() {
-  // remover linhas/polígonos
   for (const name of Object.keys(groups)) {
     try { map.removeLayer(groups[name]); } catch {}
     delete groups[name];
   }
-  // remover grupos de postos
   for (const gname of Object.keys(postGroups)) {
     try { map.removeLayer(postGroups[gname]); } catch {}
     delete postGroups[gname];
   }
-  // remover contêiner de postos
   if (lod.keysContainer) { try { map.removeLayer(lod.keysContainer); } catch {} }
   if (lod.keysRawGroup)  { try { map.removeLayer(lod.keysRawGroup);  } catch {} }
   lod.keysContainer = null;
@@ -844,7 +1393,6 @@ function renderLayersPanelPosts() {
   });
 }
 
-/* -------- Helpers de parsing -------- */
 function parseCoordBlock(txt) {
   if (!txt) return [];
   return txt.trim().replace(/\s+/g, " ").split(" ").map((p) => {
@@ -873,7 +1421,6 @@ function postoGroupByName(rawName, pm) {
   return 'OUTROS';
 }
 
-/* ------------- Rota (Google Maps) ------------- */
 function openGoogleMapsApp(lat, lng) {
   const dest = `${lat},${lng}`;
   const ios = `comgooglemaps://?daddr=${dest}&directionsmode=driving`;
@@ -887,7 +1434,6 @@ function openGoogleMapsApp(lat, lng) {
   else location.href = web;
 }
 
-/* --------- Distâncias/centro ---------- */
 function haversine(a, b){
   const R = 6371000;
   const toRad = (x)=> x*Math.PI/180;
@@ -910,7 +1456,6 @@ function nearestARA(keysArr, pt){
   return { code: best, dist: bd };
 }
 
-/* --------- Realce: helpers em METROS ---------- */
 function distPointToSegmentMeters(P, A, B){
   const toRad = d => d * Math.PI / 180;
   const R = 6371000;
@@ -948,14 +1493,12 @@ function bufferForZoomMeters(z){
   return Math.max(35, 250 * Math.pow(0.75, (z - 12)));
 }
 
-// Normaliza nome de grupo/código (ex.: "PAI-11" -> "PAI11")
 function normalizeGroupName(txt){
   if (!txt) return null;
   const code = extractFeedFromText(String(txt).toUpperCase());
   return code || String(txt).toUpperCase().trim();
 }
 
-// Polyline mais próxima dentro de um LayerGroup
 function nearestPolylineInGroup(groupLayer, lat, lng){
   if (!groupLayer) return null;
   let best = null, bestD = Infinity;
@@ -968,7 +1511,6 @@ function nearestPolylineInGroup(groupLayer, lat, lng){
   return best;
 }
 
-// Fallback: linha mais próxima em TODOS os grupos
 function nearestPolylineGlobal(lat, lng){
   let best = null, bestD = Infinity;
   for (const gName of Object.keys(groups)) {
@@ -981,7 +1523,6 @@ function nearestPolylineGlobal(lat, lng){
   return best;
 }
 
-// Wrapper para clique no posto
 function emphasizeNearestLineFor(groupName, lat, lng){
   const grp = groupName ? groups[normalizeGroupName(groupName)] : null;
   let target = null;
@@ -1000,7 +1541,6 @@ function guessGroupForPoint(pm, lat, lng, fallbackAlim){
   return fallbackAlim || "—";
 }
 
-/* --------- Marcador leve para POSTOS ---------- */
 function makePostMarker(lat, lng, color, labelHtml, extraHtml = "") {
   const baseRadius = matchMedia?.('(pointer:coarse)').matches ? 7 : 5;
   const cm = L.circleMarker([lat, lng], {
@@ -1093,7 +1633,6 @@ function updatePostLabels() {
   }
 }
 
-/* --------- Tooltips + clique para enfatizar linhas ---------- */
 function attachLineTooltip(poly, grpLabel) {
   poly.__label = grpLabel;
   const openLabel = () => {
@@ -1110,10 +1649,8 @@ function attachLineTooltip(poly, grpLabel) {
   poly.on("touchstart", () => openLabel());
 }
 
-/* --------- LOD ---------- */
 function updateLOD() {
   const z = map.getZoom();
-
   const canShowMarkers = (z >= Z_MARKERS_ON) && !lod.blockMarkersUntilZoom;
 
   if (canShowMarkers && !lod.keysVisible && lod.keysContainer) {
@@ -1142,7 +1679,6 @@ function updateLOD() {
   });
 }
 
-// Assinatura de linha p/ evitar duplicatas
 function lineSignature(grp, coords) {
   const round5 = (n) => Math.round(n * 1e5) / 1e5;
   const sample = (arr, step = Math.ceil(arr.length / 8)) =>
@@ -1169,7 +1705,6 @@ map.on("zoomstart", () => {
   for (const it of allPostMarkers) { if (it._labelOn) { it.m.unbindTooltip(); it._labelOn = false; } }
 });
 
-/* ---------- Destaque aplicar/limpar ---------- */
 function clearEmphasis(){
   if (highlight.line && highlight.oldStyle){
     try {
@@ -1235,7 +1770,6 @@ async function parseKML(text, cityHint = "") {
     localIndex.groups = [];
     stats = { markers: 0, lines: 0, polygons: 0 };
 
-    // contêiner de postos (oculto; só aparece após 1º zoom do usuário)
     if (hasCluster) {
       lod.keysContainer = L.markerClusterGroup({
         chunkedLoading: true,
@@ -1265,7 +1799,6 @@ async function parseKML(text, cityHint = "") {
         const rawName = pm.querySelector("name")?.textContent?.trim() || `Ponto`;
         const alim = getAlim(pm);
 
-        // ---------- POSTO ----------
         const point = pm.querySelector(":scope > Point > coordinates");
         if (point) {
           const coords = parseCoordBlock(point.textContent);
@@ -1305,7 +1838,6 @@ async function parseKML(text, cityHint = "") {
           continue;
         }
 
-        // ---------- LINHAS ----------
         const lineNodes = pm.querySelectorAll(":scope > LineString > coordinates, MultiGeometry LineString coordinates");
         if (lineNodes.length) {
           lineNodes.forEach(ls => {
@@ -1339,7 +1871,6 @@ async function parseKML(text, cityHint = "") {
           continue;
         }
 
-        // ---------- POLÍGONOS ----------
         const polyNodes = pm.querySelectorAll(":scope > Polygon outerBoundaryIs coordinates, MultiGeometry Polygon outerBoundaryIs coordinates");
         if (polyNodes.length) {
           polyNodes.forEach(pg => {
@@ -1365,9 +1896,9 @@ async function parseKML(text, cityHint = "") {
           });
           continue;
         }
-      } // chunk
+      }
       await nextIdle();
-    } // loop Placemark
+    }
 
     Object.entries(groupBounds).forEach(([name, bbox]) => {
       localIndex.groups.push({ name, lat: bbox.getCenter().lat, lon: bbox.getCenter().lng, bbox });
@@ -1387,14 +1918,6 @@ async function parseKML(text, cityHint = "") {
     updateLOD();
     updatePostLabels();
     setStatus(`✅ Publicado: ${stats.markers} postos, ${stats.lines} linhas, ${stats.polygons} polígonos`);
-    // ⇢ se alguém pediu para voltar à minha posição após a publicação, faça agora
-if (window.__afterPublishFlyTarget) {
-  const { lat, lng, accuracy } = window.__afterPublishFlyTarget;
-  const targetZ = Math.max(map.getZoom(), 18);   // zoom confortável
-  map.flyTo([lat, lng], targetZ, { duration: 0.7 });
-  drawMeAt(lat, lng, accuracy);                  // redesenha o pin
-  window.__afterPublishFlyTarget = null;         // limpa o “lembrete”
-}
 
   } catch (e) {
     console.error(e);
@@ -1423,24 +1946,23 @@ async function loadKMZ(file) {
 }
 
 /* ----------------- Upload / Drag&Drop ----------------- */
-fileInput?.addEventListener("change", (e) => {
+fileInput?.addEventListener("change", async (e) => {
   const f = e.target.files?.[0];
   if (f) {
     const cityGuess = prettyCityFromFilename(f.name);
     const last = f.lastModified ? new Date(f.lastModified) : new Date();
-    setUpdateBanner(cityGuess || 'Arquivo local', last);
+    // setUpdateBanner(cityGuess || 'Arquivo local', last);
   }
   if (!f) return;
   currentFile && (currentFile.textContent = f.name);
-  const ext = f.name.split(".").pop().toLowerCase();
-  if (ext === "kml") {
-    const r = new FileReader();
-    r.onload = (ev) => parseKML(ev.target.result, prettyCityFromFilename(f.name));
-    r.readAsText(f);
-  } else if (ext === "kmz") {
-    loadKMZ(f);
-  } else setStatus("Formato não suportado. Use .KML ou .KMZ");
+  
+  try {
+    await handleFileUploadWithCache(f);
+  } catch (error) {
+    console.error('Erro no upload com cache:', error);
+  }
 });
+
 if (dropZone && fileInput) {
   dropZone.addEventListener("click", () => fileInput.click());
   dropZone.addEventListener("keydown", (e) => {
@@ -1455,13 +1977,20 @@ if (dropZone && fileInput) {
   ["dragleave", "drop"].forEach((ev) =>
     dropZone.addEventListener(ev, () => dropZone.classList.remove("drag-over"))
   );
-  dropZone.addEventListener("drop", (e) => {
+  dropZone.addEventListener("drop", async (e) => {
     const f = e.dataTransfer?.files?.[0];
     if (!f) return;
-    const dt = new DataTransfer();
-    dt.items.add(f);
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event("change"));
+    
+    try {
+      await handleFileUploadWithCache(f);
+      
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event("change"));
+    } catch (error) {
+      console.error('Erro no drop com cache:', error);
+    }
   });
 }
 
@@ -1481,7 +2010,6 @@ $("#clearLayers")?.addEventListener("click", () => {
   setStatus("🗑️ Publicação limpa");
 });
 
-// ⚠️ Botões afetam apenas LINHAS
 hideAllBtn?.addEventListener("click", () => {
   clearEmphasis();
   order.forEach((n) => {
@@ -1523,900 +2051,45 @@ showAllPostsBtn?.addEventListener("click", () => {
   }
 });
 
+/* ========================
+   INICIALIZAÇÃO FINAL
+   ======================== */
+
+// Inicialização quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🏁 Inicializando sistema completo com cache...');
+  
+  // Aguarda o mapa estar pronto
+  const checkMapReady = setInterval(() => {
+    if (typeof map !== 'undefined' && map) {
+      clearInterval(checkMapReady);
+      
+      // Inicia o sistema de cache
+      initializeCacheSystem();
+      
+      // Carrega cidades
+      apiListCities().catch(console.error);
+      
+      console.log('✅ Sistema de cache inicializado');
+    }
+  }, 100);
+  
+  // Timeout de segurança
+  setTimeout(() => {
+    clearInterval(checkMapReady);
+    initializeCacheSystem().catch(console.error);
+  }, 5000);
+});
+
 /* ----------------- Inicial ----------------- */
 setStatus("Sistema pronto");
 
-/* =========================================================
-   GeoViewer Pro — Cidades (CRUD via API + upload em disco)
-   ========================================================= */
-const API_CITIES = 'api/cities.php';
-
-// DOM
-const dlgCities          = document.getElementById('citiesDialog');
-const btnOpenCities      = document.getElementById('openCities');
-const btnCloseCities     = document.getElementById('closeCities');
-const btnOkCities        = document.getElementById('okCities');
-const cityForm           = document.getElementById('cityForm');
-const cityIdInput        = document.getElementById('cityId');
-const cityNameInput      = document.getElementById('cityName');
-const cityPrefixInput    = document.getElementById('cityPrefix');
-const cityFileInput      = document.getElementById('cityFile');
-const btnCityNew         = document.getElementById('btnCityNew');
-const btnCityDelete      = document.getElementById('btnCityDelete');
-const citySearchInput    = document.getElementById('citySearch');
-const tbodyCityList      = document.getElementById('cityList');
-const tplCityRow         = document.getElementById('cityRowTpl');
-
-const dlgConfirmDel      = document.getElementById('confirmDeleteCityDialog');
-const confirmDelCityName = document.getElementById('confirmDelCityName');
-const confirmDelCancel   = document.getElementById('confirmDelCancel');
-const confirmDelOk       = document.getElementById('confirmDelOk');
-
-let _cities = [];
-let _pendingDeleteId = null;
-
-/* ---- Cache Storage para cidades (prefetch) ---- */
-const CACHE_CITIES = 'gv-cities-v1';
-
-async function cacheOpen() {
-  return ('caches' in window) ? caches.open(CACHE_CITIES) : null;
-}
-async function cacheGet(url) {
-  try {
-    const c = await cacheOpen(); if (!c) return null;
-    const m = await c.match(url);
-    return m || null;
-  } catch { return null; }
-}
-async function cachePut(url, resp) {
-  try {
-    const c = await cacheOpen(); if (!c) return;
-    await c.put(url, resp.clone());
-  } catch {}
-}
-
-// ------- API helpers -------
-async function apiListCities(){
-  const r = await fetch(`${API_CITIES}?action=list`, { cache:'no-store' });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao listar cidades');
-  return j.data || [];
-}
-async function apiGetCity(id){
-  const r = await fetch(`${API_CITIES}?action=get&id=${encodeURIComponent(id)}`, { cache:'no-store' });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao obter cidade');
-  return j.data;
-}
-async function apiCreateCity({name, prefix, file}){
-  const fd = new FormData();
-  fd.append('action','create');
-  fd.append('name', name);
-  if (prefix) fd.append('prefix', prefix);
-  if (file) fd.append('file', file, file.name);
-  const r = await fetch(API_CITIES, { method:'POST', body: fd });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao criar cidade');
-  return j.data;
-}
-async function apiUpdateCity({id, name, prefix, file}){
-  const fd = new FormData();
-  fd.append('action','update');
-  fd.append('id', id);
-  fd.append('name', name);
-  if (prefix) fd.append('prefix', prefix);
-  if (file) fd.append('file', file, file.name);
-  const r = await fetch(API_CITIES, { method:'POST', body: fd });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao atualizar cidade');
-  return j.data;
-}
-async function apiDeleteCity(id){
-  const fd = new FormData();
-  fd.append('action','delete');
-  fd.append('id', id);
-  const r = await fetch(API_CITIES, { method:'POST', body: fd });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao excluir cidade');
-  return j.data;
-}
-async function apiSetDefaultCity(id){
-  const fd = new FormData();
-  fd.append('action','set_default');
-  fd.append('id', id);
-  const r = await fetch('api/cities.php', { method:'POST', body: fd, cache:'no-store' });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Falha ao definir padrão');
-  return j.data;
-}
-
-// ------- Render -------
-function renderCities(filter=''){
-  if (!tbodyCityList || !tplCityRow) return;
-  const f = (filter||'').trim().toLowerCase();
-  const rows = _cities
-    .slice()
-    .sort((a,b)=> a.name.localeCompare(b.name))
-    .filter(c => !f || c.name.toLowerCase().includes(f) || (c.prefix||'').toLowerCase().includes(f));
-
-  tbodyCityList.innerHTML = '';
-  rows.forEach(c => {
-    const tr = tplCityRow.content.firstElementChild.cloneNode(true);
-    tr.dataset.id = c.id;
-
-    const nameCell = tr.querySelector('[data-col="name"]');
-    nameCell.textContent = '';
-    const star = document.createElement('span');
-    star.textContent = c.isDefault ? '⭐ ' : '';
-    const nameTxt = document.createTextNode(c.name);
-    nameCell.appendChild(star);
-    nameCell.appendChild(nameTxt);
-
-    tr.querySelector('[data-col="prefix"]').textContent = c.prefix || '';
-    tr.querySelector('[data-col="file"]').textContent = c.file?.name || '—';
-
-    const btnLoad = tr.querySelector('[data-act="load"]');
-    const btnEdit = tr.querySelector('[data-act="edit"]');
-
-    const btnDefault = document.createElement('button');
-    btnDefault.className = 'icon-link';
-    btnDefault.title = 'Definir como padrão';
-    btnDefault.textContent = '⭐';
-    btnDefault.addEventListener('click', async () => {
-      try{
-        await apiSetDefaultCity(c.id);
-        _cities = await apiListCities();
-        renderCities(citySearchInput?.value||'');
-        setStatus && setStatus(`⭐ ${c.name} definida como padrão`);
-      }catch(err){
-        alert(err.message||'Erro ao definir padrão');
-      }
-    });
-
-    const actions = tr.querySelector('.row-actions');
-    actions.insertBefore(btnDefault, actions.firstChild);
-
-    btnLoad.addEventListener('click', () => loadCityOnMap(c.id));
-    btnEdit.addEventListener('click', () => fillFormForEdit(c.id));
-
-    tbodyCityList.appendChild(tr);
-  });
-}
-function resetCityForm(){
-  cityIdInput.value = '';
-  cityNameInput.value = '';
-  cityPrefixInput.value = '';
-  cityFileInput.value = '';
-  btnCityDelete.disabled = true;
-}
-async function fillFormForEdit(id){
-  try{
-    const c = await apiGetCity(id);
-    cityIdInput.value = c.id;
-    cityNameInput.value = c.name;
-    cityPrefixInput.value = c.prefix || '';
-    cityFileInput.value = '';
-    btnCityDelete.disabled = false;
-  }catch(err){
-    alert(err.message||'Erro ao carregar cidade');
-  }
-}
-
-// ------- Eventos UI -------
-btnOpenCities?.addEventListener('click', async ()=>{
-  try{
-    setStatus && setStatus('Carregando cidades…');
-    _cities = await apiListCities();
-    renderCities();
-    dlgCities?.showModal();
-    setStatus && setStatus('Sistema pronto');
-  }catch(err){
-    console.error(err);
-    alert(err.message||'Erro ao listar');
-  }
-});
-btnCloseCities?.addEventListener('click', ()=> dlgCities?.close());
-btnOkCities?.addEventListener('click', ()=> dlgCities?.close());
-document.addEventListener('keydown', (e)=>{
-  if (e.key === 'Escape') {
-    if (dlgConfirmDel?.open) dlgConfirmDel.close();
-    else if (dlgCities?.open) dlgCities.close();
-  }
-});
-btnCityNew?.addEventListener('click', resetCityForm);
-citySearchInput?.addEventListener('input', ()=> renderCities(citySearchInput.value));
-
-btnCityDelete?.addEventListener('click', ()=>{
-  const id = cityIdInput.value.trim();
-  if (!id) return;
-  const c = _cities.find(x => x.id === id);
-  if (!c) return;
-  _pendingDeleteId = id;
-  confirmDelCityName.textContent = c.name;
-  dlgConfirmDel.showModal();
-});
-confirmDelCancel?.addEventListener('click', ()=> { _pendingDeleteId = null; dlgConfirmDel.close(); });
-confirmDelOk?.addEventListener('click', async ()=>{
-  if (!_pendingDeleteId) return;
-  try{
-    await apiDeleteCity(_pendingDeleteId);
-    _cities = await apiListCities();
-    renderCities(citySearchInput?.value||'');
-    resetCityForm();
-    setStatus && setStatus('🗑️ Cidade excluída');
-  }catch(err){
-    alert(err.message||'Erro ao excluir');
-  }finally{
-    _pendingDeleteId = null;
-    dlgConfirmDel.close();
-  }
-});
-
-cityForm?.addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const id = cityIdInput.value.trim();
-  const name = cityNameInput.value.trim();
-  const prefix = cityPrefixInput.value.trim();
-  const file  = cityFileInput.files?.[0] || null;
-
-  if (!name){ cityNameInput.focus(); return; }
-
-  try{
-    let saved;
-    if (!id) saved = await apiCreateCity({name, prefix, file});
-    else     saved = await apiUpdateCity({id, name, prefix, file});
-
-    _cities = await apiListCities();
-    renderCities(citySearchInput?.value||'');
-    fillFormForEdit(saved.id);
-    setStatus && setStatus(id ? '💾 Cidade atualizada' : '✅ Cidade cadastrada');
-  }catch(err){
-    console.error(err);
-    alert(err.message||'Erro ao salvar');
-  }
-});
-
-// ===== Últimas Atualizações (banner) =====
-const filesUpdEl = document.getElementById('filesUpdatedAt');
-function fmtDateTime(dt){
-  try{
-    return new Intl.DateTimeFormat('pt-BR',{ dateStyle:'short', timeStyle:'short' }).format(dt);
-  }catch{ return dt.toLocaleString?.() || String(dt); }
-}
-function setUpdateBanner(cityName, when){
-  if (!filesUpdEl) return;
-  const nice = fmtDateTime(when instanceof Date ? when : new Date(when));
-  filesUpdEl.textContent = `Últimas atualizações: ${cityName} — ${nice}`;
-}
-
-/* ---------- Load city com cache-first + fallback de rede ---------- */
-async function loadCityOnMap(id) {
-  try {
-    const c = await apiGetCity(id);
-    if (!c || !c.file || !c.file.url) { alert('Esta cidade não possui arquivo cadastrado.'); return; }
-
-    const url   = c.file.url;
-    const name  = c.name || 'Modelo';
-    const isKmz = /\.kmz$/i.test(url);
-
-    setStatus && setStatus(`Baixando ${name}…`);
-    showLoading(true, `Carregando ${name}…`);
-
-    // 1) cache
-    let resp = await cacheGet(url);
-
-    // 2) rede como fallback; salva no cache se ok
-    if (!resp) {
-      const net = await fetch(url, { cache: 'no-cache' });
-      if (!net.ok) throw new Error('Falha ao baixar arquivo');
-      await cachePut(url, net.clone());
-      resp = net;
-      setStatus && setStatus(`📦 ${name}: salvo em cache para reaberturas rápidas`);
-    }
-
-    const lastHdr = resp.headers?.get?.('Last-Modified')
-                 || resp.headers?.get?.('X-Last-Modified')
-                 || resp.headers?.get?.('Date');
-    const when = lastHdr ? new Date(lastHdr) : new Date();
-    setUpdateBanner(name, when);
-
-    // PUBLICAÇÃO nova
-    if (isKmz) {
-      const blob = await resp.blob();
-      const fname = c.file.name || `${(c.prefix || cityToPrefix(name) || 'CITY')}.kmz`;
-      const file = new File([blob], fname, { type: blob.type || 'application/vnd.google-earth.kmz' });
-      await loadKMZ(file);
-    } else {
-      const text = await resp.text();
-      await parseKML(text, name);
-    }
-
-    currentFile && (currentFile.textContent = (c.file.name || 'arquivo') + ` (de ${name})`);
-    setStatus && setStatus(`📥 ${name} carregada`);
-    dlgCities?.close();
-  } catch (err) {
-    console.error(err);
-    alert(err.message || 'Erro ao carregar no mapa');
-    setStatus && setStatus('Erro ao carregar arquivo');
-  } finally {
-    showLoading(false);
-  }
-}
-
-// Boot leve
-(async function initCitiesUI(){
-  if (!dlgCities) return;
-  try{ _cities = await apiListCities(); } catch {}
-})();
-(async function autoLoadDefaultCity(){
-  try{
-    const list = await apiListCities();
-    const def = list.find(x => x.isDefault && x.file && x.file.url);
-    if (def){
-      await loadCityOnMap(def.id);
-      setStatus && setStatus(`⭐ Carregada cidade padrão: ${def.name}`);
-    }
-  }catch(e){}
-})();
-
-/* =========================================================
-   ADMIN – Logo uploader (server-side) + PWA icons refresh
-   ========================================================= */
-(function (w, d) {
-  const DEFAULTS = {
-    defaultLogo: 'assets/img/image.png',
-    serverLogoPath: 'uploads/logo.png',
-    uploadEndpoint: 'api/upload_logo.php',
-    sel: {
-      img: '#brandLogo',
-      imgTop: '#brandLogoTop',
-      loadingLogo: '#loadingLogo',
-      favicon: '#favicon',
-      fileInput: '#logoFileInput',
-      btnFab: '#changeLogoBtn',
-      btnInline: '#changeLogoBtnInline'
-    },
-    maxSizeMB: 2
-  };
-
-  function initAdminLogoUpload(opts = {}) {
-    const cfg = deepMerge(DEFAULTS, opts);
-    const $  = (s) => d.querySelector(s);
-
-    const $img         = $(cfg.sel.img);
-    const $imgTop      = $(cfg.sel.imgTop);
-    const $loadingLogo = $(cfg.sel.loadingLogo);
-    const $favicon     = $(cfg.sel.favicon);
-    const $fileInput   = $(cfg.sel.fileInput);
-    const $btnFab      = $(cfg.sel.btnFab);
-    const $btnInline   = $(cfg.sel.btnInline);
-
-    let $apple = d.querySelector('link[rel="apple-touch-icon"]');
-    if (!$apple) {
-      $apple = d.createElement('link');
-      $apple.setAttribute('rel', 'apple-touch-icon');
-      d.head.appendChild($apple);
-    }
-
-    const bust = (p) => p + '?' + Date.now();
-
-    function applyLogoUI(src) {
-      if ($img)         $img.src = src;
-      if ($imgTop)      $imgTop.src = src;
-      if ($loadingLogo) $loadingLogo.src = src;
-      if ($favicon) $favicon.href = bust('assets/icons/icon-192.png');
-      if ($apple)   $apple.href   = bust('assets/icons/apple-touch-icon.png');
-    }
-
-    async function loadServerLogo() {
-      try {
-        const res = await fetch(cfg.serverLogoPath, { cache: 'no-store' });
-        applyLogoUI(res.ok ? bust(cfg.serverLogoPath) : cfg.defaultLogo);
-      } catch {
-        applyLogoUI(cfg.defaultLogo);
-      }
-    }
-
-    async function uploadLogo(file) {
-      const okType = file && file.type && file.type.startsWith('image/');
-      if (!okType) { alert('Selecione uma imagem (PNG, JPG, WEBP, GIF, SVG).'); return; }
-      if (file.size > cfg.maxSizeMB * 1024 * 1024) {
-        alert(`Imagem muito grande (máx. ${cfg.maxSizeMB} MB).`); return;
-      }
-      const fd = new FormData();
-      fd.append('logo', file);
-      try {
-        const resp = await fetch(cfg.uploadEndpoint, { method: 'POST', body: fd });
-        const j = await resp.json();
-        if (!j.ok) throw new Error(j.error || 'Falha no upload');
-        applyLogoUI(bust(cfg.serverLogoPath));
-        [
-          'assets/icons/icon-192.png',
-          'assets/icons/icon-512.png',
-          'assets/icons/icon-512-maskable.png',
-          'assets/icons/apple-touch-icon.png'
-        ].forEach(p => { const i = new Image(); i.decoding = 'async'; i.src = bust(p); });
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistration()
-            .then(reg => reg && reg.update())
-            .catch(() => {});
-        }
-        alert('✅ Logo atualizada com sucesso!');
-      } catch (err) {
-        alert('❌ Erro ao enviar: ' + (err.message || 'Desconhecido'));
-      }
-    }
-
-    d.addEventListener('DOMContentLoaded', loadServerLogo);
-
-    if ($img) {
-      $img.addEventListener('click', (ev) => {
-        if (ev.shiftKey) {
-          if (confirm('Restaurar visualmente para a logo padrão (sem apagar do servidor)?')) {
-            applyLogoUI(cfg.defaultLogo);
-          }
-          return;
-        }
-        $fileInput && $fileInput.click();
-      });
-      $img.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          $fileInput && $fileInput.click();
-        }
-      });
-    }
-    if ($btnFab)    $btnFab.addEventListener('click',   () => $fileInput && $fileInput.click());
-    if ($btnInline) $btnInline.addEventListener('click',() => $fileInput && $fileInput.click());
-
-    if ($fileInput) {
-      $fileInput.addEventListener('change', (ev) => {
-        const file = ev.target.files && ev.target.files[0];
-        if (file) uploadLogo(file);
-        ev.target.value = '';
-      });
-    }
-    return { applyLogoUI, loadServerLogo, uploadLogo, config: cfg };
-  }
-
-  function deepMerge(base, extra) {
-    const out = { ...base, ...(extra || {}) };
-    out.sel = { ...base.sel, ...((extra && extra.sel) || {}) };
-    return out;
-  }
-
-  w.initAdminLogoUpload = initAdminLogoUpload;
-  initAdminLogoUpload();
-})(window, document);
-
-/* ---- SW ---- */
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js');
-}
-
-let meLayer = null;   // agrupador do marcador + círculo de foco
-let meMarker = null;  // referência do marcador “ponto”
-// ======= pós-publicação: alvo para voltar =======
-window.__afterPublishFlyTarget = null;
-
-/** redesenha o pin da minha localização sem reler geoloc */
-function drawMeAt(lat, lng, accuracy){
-  // apaga marcadores antigos com animação (você já tem essa helper)
-  if (typeof animateOutOldMarker === 'function') animateOutOldMarker();
-
-  // ping visual
-  if (typeof pingAt === 'function') pingAt([lat, lng]);
-
-  // (re)cria o grupo/marcadores
-  if (typeof L !== 'undefined') {
-    if (typeof meLayer !== 'undefined' && meLayer) { try { map.removeLayer(meLayer); } catch{} }
-    meLayer = L.layerGroup().addTo(map);
-
-    meMarker = L.marker([lat, lng], {
-      icon: L.divIcon({
-        className: 'gv-me',
-        html: '<span class="gv-me__dot"></span><span class="gv-me__ring"></span>',
-        iconSize:[0,0], iconAnchor:[0,0]
-      }),
-      keyboard:false, zIndexOffset:1000
-    }).addTo(meLayer);
-
-    L.circleMarker([lat, lng], {
-      radius: 12, color:'#fff', weight:3, fillColor:'transparent',
-      opacity:.9, renderer: fastRenderer
-    }).addTo(meLayer);
-
-    meLayer.eachLayer(l => l.bringToFront && l.bringToFront());
-  }
-
-  if (coordsEl) {
-    coordsEl.textContent =
-      `Lat: ${lat.toFixed(6)} | Lon: ${lng.toFixed(6)}${accuracy?` (±${Math.round(accuracy)}m)`:''}`;
-  }
-}
-
-// injeta CSS (ponto + anel + ping)
-(function ensureMeStyles(){
-  if (document.getElementById('gv-me-styles')) return;
-  const css = `
-  .gv-me{position:relative; width:0; height:0}
-  .gv-me__dot{
-    position:absolute; left:-10px; top:-10px; width:20px; height:20px;
-    border-radius:50%; background:#e03131; box-shadow:0 0 0 3px #fff, 0 10px 20px rgba(0,0,0,.25);
-  }
-  .gv-me__ring{
-    position:absolute; left:-18px; top:-18px; width:36px; height:36px;
-    border:3px solid rgba(224,49,49,.65); border-radius:50%;
-    animation:gvPulse 1.2s ease-out infinite; box-sizing:border-box;
-  }
-  @keyframes gvPulse{
-    0%{transform:scale(.6); opacity:.9}
-    70%{transform:scale(1.25); opacity:.15}
-    100%{transform:scale(1.4); opacity:0}
-  }
-  .gv-marker--out .gv-me__ring{animation:none; opacity:0; transition:opacity .2s}
-
-  /* ping temporário */
-  .gv-ping__dot{
-    position:absolute; left:-6px; top:-6px; width:12px; height:12px;
-    border-radius:50%; background:#e03131; box-shadow:0 0 0 2px #fff;
-  }
-  .gv-ping__ring{
-    position:absolute; left:-14px; top:-14px; width:28px; height:28px;
-    border:2px solid rgba(224,49,49,.65); border-radius:50%;
-    animation:gvPulse 1.0s ease-out 1;
-  }`;
-  const style = document.createElement('style');
-  style.id = 'gv-me-styles';
-  style.textContent = css;
-  document.head.appendChild(style);
-})();
-
-function pingAt(latlng) {
-  const ping = L.marker(latlng, {
-    icon: L.divIcon({
-      className: 'gv-ping',
-      html: '<span class="gv-ping__dot"></span><span class="gv-ping__ring"></span>',
-      iconSize: [0, 0],
-      iconAnchor: [0, 0]
-    }),
-    interactive: false,
-    keyboard: false
-  }).addTo(map);
-  setTimeout(() => map.removeLayer(ping), 1200);
-}
-function animateOutOldMarker() {
-  if (!meLayer) return;
-  const el = meMarker?.getElement?.();
-  if (el) el.classList.add('gv-marker--out');
-  setTimeout(() => {
-    try { map.removeLayer(meLayer); } catch {}
-    meLayer = null;
-    meMarker = null;
-  }, 320);
-}
-/** Lê geolocalização UMA vez com animação */
-async function locateOnceAnimated() {
-  try {
-    if (typeof map.stopLocate === "function") map.stopLocate();
-
-    if (!("geolocation" in navigator)) {
-      setStatus && setStatus("⚠️ Geolocalização não suportada.");
-      return null;
-    }
-
-    setStatus && setStatus("Obtendo sua posição…");
-
-    const pos = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
-      });
-    });
-
-    const { latitude, longitude, accuracy } = pos.coords;
-    const latlng = [latitude, longitude];
-
-    animateOutOldMarker();
-    pingAt(latlng);
-
-    const targetZoom = Math.max(map.getZoom(), 18.2);
-    map.flyTo(latlng, targetZoom, { animate: true, duration: 0.7 });
-
-    meLayer = L.layerGroup().addTo(map);
-
-    meMarker = L.marker(latlng, {
-      icon: L.divIcon({
-        className: 'gv-me',
-        html: '<span class="gv-me__dot"></span><span class="gv-me__ring"></span>',
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
-      }),
-      keyboard: false,
-      zIndexOffset: 1000
-    }).addTo(meLayer);
-
-    L.circleMarker(latlng, {
-      radius: 12, color: '#fff', weight: 3, fillColor: 'transparent',
-      opacity: .9, renderer: fastRenderer
-    }).addTo(meLayer);
-
-    meLayer.eachLayer(l => l.bringToFront && l.bringToFront());
-
-    if (coordsEl) {
-      coordsEl.textContent = `Lat: ${latitude.toFixed(6)} | Lon: ${longitude.toFixed(6)}${accuracy ? ` (±${Math.round(accuracy)}m)` : ''}`;
-    }
-    setStatus && setStatus("📍 Posição marcada.");
-
-    return { lat: latitude, lng: longitude, accuracy };
-  } catch (err) {
-    let msg = "Não foi possível obter a localização.";
-    if (err && typeof err === "object" && "code" in err) {
-      msg =
-        err.code === err.PERMISSION_DENIED ? "Permissão de localização negada." :
-        err.code === err.POSITION_UNAVAILABLE ? "Posição indisponível." :
-        err.code === err.TIMEOUT ? "Tempo esgotado ao obter posição." : msg;
-    }
-    setStatus && setStatus("⚠️ " + msg);
-    alert(msg);
-    return null;
-  }
-}
-/** botão 📍 — leitura única + animação (também ligado no makeBaseController) */
-document.getElementById("locateMe")?.addEventListener("click", async () => {
-  const pos = await locateOnceAnimated(); // sua função que já anima e mostra o ponto
-  if (pos && typeof window.loadNearestCityThenReturn === 'function') {
-    // 👉 guarda alvo para voltarmos depois que o modelo publicar
-    window.__afterPublishFlyTarget = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy || 0 };
-    // carrega a cidade mais próxima (sua função)
-    window.loadNearestCityThenReturn(pos.lat, pos.lng);
-  }
-});
-
-
-
-/* =======================
-   Carregar cidade próxima da localização do usuário
-   - Usa reverse geocode para descobrir a cidade
-   - Faz matching por nome e/ou prefixo
-   - Chama loadCityOnMap(id) se encontrar
-   ======================= */
-
-async function reverseGeocodeLatLng(lat, lng){
-  const r = await fetch(`api/revgeo.php?lat=${lat}&lon=${lng}`, { cache:'no-store' });
-  const j = await r.json().catch(()=>null);
-  if (!j || !j.ok) return null;
-  return { city: j.city, admin1: j.admin1, country_code: (j.country_code||'').toUpperCase() };
-}
-
-
-/**
- * Acha um modelo por cidade retornada do reverse geocode
- * Tenta por nome exato; se não achar, tenta por prefixo heurístico.
- */
-function _matchCityInList(list, cityName, admin1){
-  if (!Array.isArray(list) || !list.length) return null;
-  const nCity = _normTxt(cityName || '');
-  const nUF   = _normTxt(admin1 || '');
-
-  // 1) match exato pelo nome
-  let hit = list.find(c => _normTxt(c.name) === nCity);
-  if (hit) return hit;
-
-  // 2) nome contém + mesmo estado (quando existir)
-  hit = list.find(c => _normTxt(c.name).includes(nCity) && (!nUF || _normTxt(c.state||'')===nUF));
-  if (hit) return hit;
-
-  // 3) heurística por prefixo configurado (ex.: BHZ, RIO…)
-  const guessPrefix = cityToPrefix(cityName || '');
-  hit = list.find(c => (c.prefix||'').toUpperCase() === guessPrefix.toUpperCase());
-  if (hit) return hit;
-
-  // 4) começa com
-  hit = list.find(c => _normTxt(c.name).startsWith(nCity));
-  return hit || null;
-}
-
-// ---- 1) helper: normaliza comparação de nomes ----
-const _norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-
-// ---- 2) encontra cidade cadastrada que "bate" com o nome do reverse geocode ----
-function findCityByNameLike(cityName, cities){
-  const n = _norm(cityName);
-  // 1: match exato
-  let c = cities.find(x => _norm(x.name) === n);
-  if (c) return c;
-  // 2: começa com
-  c = cities.find(x => _norm(x.name).startsWith(n));
-  if (c) return c;
-  // 3: inclui (ex.: "Belo Horizonte - MG")
-  c = cities.find(x => _norm(x.name).includes(n));
-  return c || null;
-}
-
-// ---- 3) carrega a cidade mais próxima e, ao terminar, volta para as coord do usuário ----
-// Helper p/ mensagens curtas no status
-
-function setStatusShort(msg){
-  if (!setStatus) return;
-  const s = String(msg || '');
-  setStatus(s.length > MAX_STATUS_LEN ? s.slice(0, MAX_STATUS_LEN - 1) + '…' : s);
-}
-
-async function loadNearestCityThenReturn(lat, lng){
-  try{
-    setStatusShort('🔎 Buscando sua cidade…');
-
-    // usa seu endpoint (api/revgeo.php)
-    const rg = await reverseGeocodeLatLng(lat, lng);
-    const cityName = rg?.city;
-    if (!cityName){
-      setStatusShort('⚠️ Cidade não identificada.');
-      return;
-    }
-
-    const list = _cities?.length ? _cities : await apiListCities();
-    const match = findCityByNameLike(cityName, list);
-    if (!match){
-      setStatusShort(`⚠️ ${cityName} não cadastrada.`);
-      return;
-    }
-
-    setStatusShort(`📥 Carregando ${match.name}…`);
-    await loadCityOnMap(match.id);
-
-    // publicado: volta para o ponto do usuário
-    const z = Math.max(17, map.getZoom());
-    map.flyTo([lat, lng], z, { duration: 0.8 });
-    pingAt([lat, lng]);
-
-    setStatusShort(`✅ ${match.name} carregada; mostrando você.`);
-  } catch (err){
-    console.error(err);
-    setStatusShort('⚠️ Erro ao carregar e recentrar.');
-  }
-}
-
-
-
-/**
- * Carrega o modelo da cidade mais próxima da (lat,lng) e,
- * depois que terminar o load/fitBounds, voa de volta pro usuário.
- */
-async function loadNearestCityThenReturn(lat, lng, zoom = 18){
-  try{
-    // 1) tenta descobrir cidade via reverse geocode (use seu proxy sem CORS)
-    const rev = await reverseGeocodeLatLng(lat, lng); // { city, admin1, country_code }
-    if (!rev || !rev.city){
-      console.warn('[nearest] reverse geocode falhou, abortando match de cidade.');
-      return;
-    }
-
-    // 2) garante lista de cidades atualizada
-    try { _cities = await apiListCities(); } catch {}
-
-    const city = _matchCityInList(_cities, rev.city, rev.admin1);
-    if (!city){ 
-      setStatus && setStatus(`⚠️ Nenhum modelo cadastrado para ${rev.city}.`);
-      return;
-    }
-
-    setStatus && setStatus(`📦 Carregando modelo de ${city.name}…`);
-    await loadCityOnMap(city.id);                 // <- publica KML/KMZ e faz fitBounds
-    await new Promise(r => setTimeout(r, 120));   // pequeno respiro p/ terminar render
-
-    // 3) volta para a sua posição (sem “perder” o foco)
-    const targetZoom = Math.max(map.getZoom(), zoom);
-    map.flyTo([lat, lng], targetZoom, { animate: true, duration: 0.7 });
-
-    // re-garante o marcador de você (se já não estiver na tela)
-    if (!meLayer || !meMarker){
-      // reaproveita o visual do bloco de localização
-      pingAt([lat, lng]);
-      meLayer = L.layerGroup().addTo(map);
-      
-      meMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-          className: 'gv-me',
-          html: '<span class="gv-me__dot"></span><span class="gv-me__ring"></span>',
-          iconSize: [0,0], iconAnchor: [0,0]
-        }),
-        keyboard:false, zIndexOffset:1000
-      }).addTo(meLayer);
-      L.circleMarker([lat, lng], {
-        radius: 12, color:'#fff', weight:3, fillColor:'transparent',
-        opacity:.9, renderer: fastRenderer
-      }).addTo(meLayer);
-      meLayer.eachLayer(l => l.bringToFront && l.bringToFront());
-    }
-
-    setStatus && setStatus(`✅ ${city.name} carregada. Centralizado na sua posição.`);
-  }catch(err){
-    console.error('[nearest] erro', err);
-    setStatus && setStatus('❌ Erro ao carregar cidade próxima.');
-  }
-}
-
-
-function _normTxt(s=''){
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-}
-
-function _normCity(s=''){
-  return stripAccents(String(s).toLowerCase()).replace(/[^a-z0-9 ]/g,'').trim();
-}
-function _same(a,b){ return _normCity(a) === _normCity(b); }
-function _starts(a,b){ return _normCity(a).startsWith(_normCity(b)); }
-function _incl(a,b){ return _normCity(a).includes(_normCity(b)); }
-
-/**
- * Carrega a cidade mais apropriada com base em lat/lng atuais.
- * - Se achar correspondência por nome/prefixo, pergunta e carrega.
- * - Retorna o ID carregado ou null.
- */
-async function loadNearestCityThenReturn(lat, lng) {
-  try {
-    // garantia: lista de cidades pronta
-    if (!_cities || !_cities.length) {
-      try { _cities = await apiListCities(); } catch {}
-    }
-    if (!_cities || !_cities.length) {
-      setStatus && setStatus('⚠️ Nenhuma cidade cadastrada.');
-      return null;
-    }
-
-    setStatus && setStatus('🔎 Identificando cidade próxima…');
-    const info = await reverseGeocodeLatLng(lat, lng);
-
-    // fallback se reverse falhar: tenta por proximidade de prefixo padrão “GEN”
-    if (!info) {
-      // sem nome de cidade — não arrisca; apenas retorna
-      setStatus && setStatus('⚠️ Não foi possível identificar a cidade pela localização.');
-      return null;
-    }
-
-    const { city, admin1 } = info;
-    const cityN  = _normCity(city);
-    const adminN = _normCity(admin1);
-
-    // 1) match exato por nome
-    let candidates = _cities.filter(c => _same(c.name, city));
-
-    // 2) começa com / contém
-    if (!candidates.length) candidates = _cities.filter(c => _starts(c.name, city) || _incl(c.name, city));
-
-    // 3) tenta por prefixo
-    if (!candidates.length) {
-      const wantedPrefix = cityToPrefix(city);
-      candidates = _cities.filter(c => (c.prefix||'').toUpperCase() === wantedPrefix.toUpperCase());
-    }
-
-    // 4) se ainda houver vários, preferir os que mencionam o estado/UF no nome
-    if (candidates.length > 1 && adminN) {
-      const withAdmin = candidates.filter(c => _incl(c.name, admin1));
-      if (withAdmin.length) candidates = withAdmin;
-    }
-
-    // 5) escolhe o primeiro
-    const chosen = candidates[0] || null;
-
-    if (!chosen) {
-      setStatus && setStatus(`ℹ️ Posição em ${city}${admin1?`/${admin1}`:''}, mas não encontrei essa cidade na sua lista.`);
-      return null;
-    }
-
-    // confirma com o usuário (evita troca “surpresa” do mapa)
-    const ok = window.confirm(`Carregar o modelo de “${chosen.name}”?`);
-    if (!ok) { setStatus && setStatus('Abertura cancelada.'); return null; }
-
-    await loadCityOnMap(chosen.id);
-    setStatus && setStatus(`📦 Carregado: ${chosen.name}`);
-    return chosen.id;
-
-  } catch (err) {
-    console.error('[loadNearestCityThenReturn]', err);
-    setStatus && setStatus('⚠️ Erro ao carregar cidade próxima.');
-    return null;
-  }
-}
+// Exportar funções para uso global
+window.saveRecentUpload = saveRecentUpload;
+window.getRecentUploads = getRecentUploads;
+window.loadCachedUpload = loadCachedUpload;
+window.clearUploadsCache = clearUploadsCache;
+window.refreshUploadsCache = refreshUploadsCache;
+window.loadLastUploadAuto = loadLastUploadAuto;
+
+console.log('🔧 Sistema completo carregado');

@@ -11,6 +11,7 @@
   <!-- iOS / iPadOS -->
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="GeoViewer">
 
@@ -21,53 +22,118 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <link rel="stylesheet" href="assets/styles.css?v=3">
   <link id="favicon" rel="icon" type="image/png" href="assets/img/image.png" />
+
+  <style>
+    .city-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: var(--panel-2);
+      transition: all 0.2s ease;
+    }
+    .city-item:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .city-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .city-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .system-indicator {
+      margin-left: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: bold;
+      border: 1px solid;
+    }
+    .mode-online {
+      color: #28a745;
+      background: #d4edda;
+      border-color: #28a745;
+    }
+    .mode-mixed {
+      color: #ffc107;
+      background: #fff3cd;
+      border-color: #ffc107;
+    }
+    .mode-offline {
+      color: #dc3545;
+      background: #f8d7da;
+      border-color: #dc3545;
+    }
+    
+    /* Estilos para loading customizado */
+    .system-loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
 
-  <!-- ========== SIDEBAR (sem recursos de admin) ========== -->
+  <!-- ========== SIDEBAR ========== -->
   <aside id="kmzSidebar" class="sidebar" aria-label="Menu lateral">
-    <!-- Cabeçalho -->
     <div class="sidebar-header">
       <div class="brand">
         <img id="brandLogo" src="assets/img/image.png" alt="Logo" />
         <div>
           <h1 class="app-title">Mapa Lino</h1>
-          <p class="app-subtitle">Visualizador</p>
+          <p class="app-subtitle" id="systemSubtitle">Carregando...</p>
         </div>
       </div>
-      <!-- O X só aparece no mobile (CSS já cobre isso) -->
       <button class="ghost-btn" id="closeSidebar" title="Fechar painel" aria-label="Fechar painel">✕</button>
     </div>
 
     <nav class="sidebar-sections" aria-label="Seções">
-      <!-- ========== CIDADES (picker) ========== -->
+      <!-- ========== CIDADES ========== -->
       <section class="panel-section" aria-labelledby="sec-cities">
         <h2 id="sec-cities">🌆 Cidades</h2>
 
         <div class="row gap">
           <div class="search small" style="flex:1">
-            <!-- busca de cidade/bairro fica aqui -->
             <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…" aria-label="Buscar cidade ou bairro" />
           </div>        
         </div>
 
         <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis" style="margin-top:8px; max-height: 280px; overflow:auto;">
-          <!-- itens via JS -->
           <div class="empty">
-            <div class="empty-ico">🏙️</div>
-            <p>Nenhuma cidade cadastrada</p>
+            <div class="empty-ico">⏳</div>
+            <p>Inicializando sistema...</p>
           </div>
         </div>
 
         <div class="file-meta" style="margin-top:10px">
           <div class="meta-row">
-            <span class="meta-label">Arquivo atual:</span>
-            <span id="currentFile" class="meta-value">Nenhum</span>
+            <span class="meta-label">Status:</span>
+            <span id="currentFile" class="meta-value">Sistema iniciando...</span>
           </div>
         </div>
       </section>
 
-      <!-- ========== CAMADAS / ALIMENTADORES (LINHAS) ========== -->
+      <!-- ========== CAMADAS / ALIMENTADORES ========== -->
       <section class="panel-section" aria-labelledby="sec-layers">
         <h2 id="sec-layers">🗂️ Camadas / Alimentadores</h2>
 
@@ -84,7 +150,7 @@
         </div>
       </section>
 
-      <!-- ========== CAMADAS / GRUPOS DE POSTOS ========== -->
+      <!-- ========== GRUPOS DE POSTOS ========== -->
       <section class="panel-section" aria-labelledby="sec-posts">
         <h2 id="sec-posts">📌 Grupos de Postos</h2>
 
@@ -125,7 +191,7 @@
     </nav>
   </aside>
 
-  <!-- ========== TOPO (busca) ========== -->
+  <!-- ========== TOPO ========== -->
   <header id="topbar" class="topbar" role="banner">
     <div class="top-left">
       <button id="openSidebar" class="icon-btn" aria-label="Abrir painel">☰</button>
@@ -135,7 +201,6 @@
       </a>
     </div>
 
-    <!-- MESMO INPUT: agora é para CHAVE com teclado numérico -->
     <div class="top-center" role="search">
       <form id="searchForm" class="search" autocomplete="off">
         <input
@@ -163,20 +228,20 @@
 
     <!-- Controles flutuantes -->
     <div class="map-fab-group" aria-label="Controles do mapa" role="group">
-  <button id="toggleSatellite" class="fab" title="Vista satélite">🛰️</button>
-  <button id="toggleTerrain"  class="fab" title="Vista terreno">🏔️</button>
-  <button id="zoomIn"         class="fab" title="Aproximar">＋</button>
-  <button id="zoomOut"        class="fab" title="Afastar">－</button>
-  <button id="locateMe"       class="fab" title="Minha localização">📍</button>
-</div>
-
+      <button id="toggleSatellite" class="fab" title="Vista satélite">🛰️</button>
+      <button id="toggleTerrain" class="fab" title="Vista terreno">🏔️</button>
+      <button id="zoomIn" class="fab" title="Aproximar">＋</button>
+      <button id="zoomOut" class="fab" title="Afastar">－</button>
+      <button id="locateMe" class="fab" title="Minha localização">📍</button>
+    </div>
   </main>
 
   <!-- ========== STATUS BAR ========== -->
   <footer id="statusBar" class="statusbar" role="contentinfo" aria-live="polite">
     <div class="status-left">
       <span class="status-dot" aria-hidden="true"></span>
-      <span id="statusText">Sistema pronto</span>
+      <span id="statusText">Inicializando sistema...</span>
+      <span id="systemIndicator" class="system-indicator mode-offline">OFFLINE</span>
     </div>
 
     <div class="developer-credit">
@@ -187,7 +252,7 @@
     </div>
 
     <div id="filesUpdatedAt" class="status-updates" style="text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-      Últimas atualizações: —
+      Sistema híbrido - Conectando...
     </div>
 
     <div id="coordinates" class="status-right" aria-label="Coordenadas do cursor">
@@ -203,158 +268,551 @@
     </div>
   </div>
 
-  <!-- ========== SCRIPTS EXTERNOS (sem script inline) ========== -->
+  <!-- ========== SCRIPTS ========== -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="assets/script.js?v=5"></script>
-    <script>
-    /* ========= Lista de cidades (lado público) ========= */
+  
+  <!-- Script principal carregado de forma assíncrona -->
+  <script src="assets/script.js?v=5" async></script>
+
+  <script>
+    /* ========= SISTEMA HÍBRIDO INDEPENDENTE ========= */
+    const SYSTEM_MODE = {
+      OFFLINE: 'offline',
+      ONLINE: 'online',
+      MIXED: 'mixed'
+    };
+
+    let currentMode = SYSTEM_MODE.OFFLINE;
+    let systemInitialized = false;
+
+    /* ========= DADOS DE FALLBACK ========= */
+    const FALLBACK_CITIES = [
+      {
+        id: 'demo-1',
+        name: 'São Paulo - Demo',
+        prefix: 'SP',
+        isDefault: true,
+        file: { name: 'sao_paulo_demo.kmz', url: 'assets/examples/sao_paulo.kmz' },
+        updatedAt: Math.floor(Date.now() / 1000),
+        defaultAt: Math.floor(Date.now() / 1000),
+        description: 'Cidade demonstrativa para testes'
+      },
+      {
+        id: 'demo-2',
+        name: 'Rio de Janeiro - Demo',
+        prefix: 'RJ',
+        isDefault: false,
+        file: { name: 'rio_demo.kmz', url: 'assets/examples/rio.kmz' },
+        updatedAt: Math.floor(Date.now() / 1000),
+        description: 'Exemplo de configuração'
+      },
+      {
+        id: 'demo-3',
+        name: 'Belo Horizonte - Demo',
+        prefix: 'BHZ',
+        isDefault: false,
+        file: { name: 'bh_demo.kmz', url: 'assets/examples/bh.kmz' },
+        updatedAt: Math.floor(Date.now() / 1000),
+        description: 'Modelo demonstrativo'
+      }
+    ];
+
+    // ========= FUNÇÕES INDEPENDENTES DA API =========
+    async function apiListCities() {
+      try {
+        console.log('🌐 Buscando cidades da API...');
+        const response = await fetch('api/cities.php?action=list', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.ok && Array.isArray(data.data)) {
+          console.log(`✅ API retornou ${data.data.length} cidades`);
+          return data.data;
+        } else {
+          throw new Error('Resposta da API inválida');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao listar cidades:', error);
+        throw error;
+      }
+    }
+
+    async function apiGetCity(id) {
+      try {
+        const response = await fetch(`api/cities.php?action=get&id=${encodeURIComponent(id)}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.ok && data.data) {
+          return data.data;
+        } else {
+          throw new Error('Cidade não encontrada');
+        }
+      } catch (error) {
+        console.error('Erro ao obter cidade:', error);
+        throw error;
+      }
+    }
+
+    async function loadCityOnMap(id) {
+      try {
+        console.log('🔍 Carregando cidade ID:', id);
+        
+        const city = await apiGetCity(id);
+        console.log('📋 Dados da cidade:', city);
+        
+        if (!city || !city.file || !city.file.url) { 
+          console.error('❌ Cidade sem arquivo:', city);
+          alert('Esta cidade não possui arquivo cadastrado.'); 
+          return; 
+        }
+
+        const url = city.file.url;
+        const name = city.name || 'Modelo';
+        const isKmz = /\.kmz$/i.test(url);
+
+        console.log('📦 URL do arquivo:', url);
+        console.log('🔠 Nome:', name);
+        console.log('📁 É KMZ?', isKmz);
+
+        // Atualiza status
+        updateStatus(`Baixando ${name}…`);
+        showLocalLoading(true, `Carregando ${name}…`);
+
+        // Baixa o arquivo
+        const response = await fetch(url, { cache: 'no-cache' });
+        if (!response.ok) {
+          throw new Error(`Falha ao baixar arquivo: ${response.status} ${response.statusText}`);
+        }
+
+        // Processa o arquivo
+        if (isKmz) {
+          console.log('📦 Processando KMZ...');
+          const blob = await response.blob();
+          console.log('📊 Tamanho do blob:', blob.size);
+          
+          const fileName = city.file.name || `${city.prefix || 'CITY'}.kmz`;
+          const file = new File([blob], fileName, { 
+            type: blob.type || 'application/vnd.google-earth.kmz' 
+          });
+          
+          // Tenta usar loadKMZ do script.js, fallback para alert
+          if (typeof window.loadKMZ === 'function') {
+            await window.loadKMZ(file);
+          } else {
+            throw new Error('Função loadKMZ não disponível. Arquivo KMZ baixado, mas não pode ser processado.');
+          }
+        } else {
+          console.log('📄 Processando KML...');
+          const text = await response.text();
+          console.log('📝 Tamanho do texto:', text.length);
+          
+          // Tenta usar parseKML do script.js, fallback para alert
+          if (typeof window.parseKML === 'function') {
+            await window.parseKML(text, name);
+          } else {
+            throw new Error('Função parseKML não disponível. Arquivo KML baixado, mas não pode ser processado.');
+          }
+        }
+
+        // Atualiza interface
+        const currentFileEl = document.getElementById('currentFile');
+        if (currentFileEl) {
+          currentFileEl.textContent = (city.file.name || 'arquivo') + ` (de ${name})`;
+        }
+
+        updateStatus(`📥 ${name} carregada`);
+        console.log('✅ Cidade carregada com sucesso');
+
+      } catch (error) {
+        console.error('❌ Erro ao carregar cidade:', error);
+        
+        let errorMessage = `Erro ao carregar cidade: ${error.message}`;
+        
+        // Mensagens mais amigáveis para erros comuns
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('404')) {
+          errorMessage = 'Arquivo não encontrado no servidor.';
+        } else if (error.message.includes('403')) {
+          errorMessage = 'Acesso negado ao arquivo.';
+        } else if (error.message.includes('não disponível')) {
+          errorMessage = 'Função de processamento não disponível. O mapa principal pode não estar carregado.';
+        }
+        
+        alert(errorMessage);
+        updateStatus('Erro ao carregar arquivo');
+      } finally {
+        showLocalLoading(false);
+      }
+    }
+
+    // ========= FUNÇÕES AUXILIARES INDEPENDENTES =========
+    function updateStatus(message) {
+      const statusEl = document.getElementById('statusText');
+      if (statusEl) {
+        // Limita o tamanho da mensagem
+        const maxLength = 40;
+        const shortMessage = message.length > maxLength 
+          ? message.substring(0, maxLength - 1) + '…' 
+          : message;
+        
+        statusEl.textContent = shortMessage;
+        statusEl.title = message; // Tooltip com mensagem completa
+      }
+    }
+
+    function showLocalLoading(show, message = "Processando...") {
+      const loadingEl = document.getElementById('loadingOverlay');
+      const loadingText = document.getElementById('loadingText');
+      
+      if (loadingEl) {
+        loadingEl.classList.toggle('show', show);
+      }
+      if (message && loadingText) {
+        loadingText.textContent = message;
+      }
+    }
+
+    function updateSystemIndicator() {
+      const indicator = document.getElementById('systemIndicator');
+      const subtitle = document.getElementById('systemSubtitle');
+      
+      if (indicator) {
+        indicator.className = 'system-indicator';
+        if (currentMode === SYSTEM_MODE.ONLINE) {
+          indicator.classList.add('mode-online');
+          indicator.textContent = 'ONLINE';
+          if (subtitle) subtitle.textContent = 'Sistema Conectado';
+        } else if (currentMode === SYSTEM_MODE.MIXED) {
+          indicator.classList.add('mode-mixed');
+          indicator.textContent = 'MISTO';
+          if (subtitle) subtitle.textContent = 'Modo Limitado';
+        } else {
+          indicator.classList.add('mode-offline');
+          indicator.textContent = 'OFFLINE';
+          if (subtitle) subtitle.textContent = 'Modo Offline';
+        }
+      }
+    }
+
+    function updateFileMeta() {
+      const fileMeta = document.getElementById('currentFile');
+      if (fileMeta) {
+        if (currentMode === SYSTEM_MODE.ONLINE) {
+          fileMeta.textContent = 'Conectado ao servidor';
+        } else if (currentMode === SYSTEM_MODE.MIXED) {
+          fileMeta.textContent = 'Conexão limitada - Modo demonstração';
+        } else {
+          fileMeta.textContent = 'Modo offline - Dados locais';
+        }
+      }
+    }
+
+    // ========= DETECÇÃO DE MODO DO SISTEMA =========
+    async function detectSystemMode() {
+      try {
+        console.log('🔍 Verificando status da API...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('api/cities.php?action=list', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        const text = await response.text();
+
+        // Verifica se é JSON válido
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const data = JSON.parse(text);
+            if (data.ok && Array.isArray(data.data)) {
+              console.log('✅ Sistema ONLINE - API funcionando');
+              return SYSTEM_MODE.ONLINE;
+            } else {
+              console.warn('⚠️ API retornou estrutura inválida');
+              return SYSTEM_MODE.MIXED;
+            }
+          } catch (e) {
+            console.warn('❌ API retornou JSON inválido:', e.message);
+            return SYSTEM_MODE.MIXED;
+          }
+        }
+
+        // Verifica se retornou HTML (erro do servidor)
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+          console.warn('⚠️ Sistema MISTO - API retornando HTML');
+          return SYSTEM_MODE.MIXED;
+        }
+
+        console.warn('⚠️ Sistema OFFLINE - Resposta inesperada');
+        return SYSTEM_MODE.OFFLINE;
+
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn('🔌 Sistema OFFLINE - Timeout na conexão');
+        } else {
+          console.warn('🔌 Sistema OFFLINE - Erro de conexão:', error.message);
+        }
+        return SYSTEM_MODE.OFFLINE;
+      }
+    }
+
+    async function smartApiCall() {
+      try {
+        console.log('🔄 Tentando API real...');
+        const cities = await apiListCities();
+        if (cities && Array.isArray(cities) && cities.length > 0) {
+          console.log(`✅ API retornou ${cities.length} cidades`);
+          return cities;
+        } else {
+          console.warn('⚠️ API retornou array vazio ou inválido');
+        }
+      } catch (error) {
+        console.warn('❌ API falhou:', error.message);
+      }
+
+      // Fallback para dados locais
+      console.log('🔄 Usando dados de demonstração');
+      return FALLBACK_CITIES;
+    }
+
+    // ========= RENDERIZADOR DE CIDADES =========
     async function renderCityPicker(filter = '') {
       const list = document.getElementById('cityPickerList');
-      const q = (filter || '').trim().toLowerCase();
-      try {
-        const items = await (window.apiListCities ? apiListCities() : Promise.resolve([]));
-        const rows = items
-          .filter(c => !q || c.name.toLowerCase().includes(q) || (c.prefix||'').toLowerCase().includes(q))
-          .sort((a,b)=> a.name.localeCompare(b.name));
+      const searchTerm = (filter || '').trim().toLowerCase();
 
-        if (!rows.length) {
-          list.innerHTML = '<div class="empty"><div class="empty-ico">🏙️</div><p>Nenhuma cidade cadastrada</p></div>';
-          return;
-        }
-        list.innerHTML = rows.map(c => `
-          <div class="city-item" role="listitem" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--panel-2)">
-            <div style="min-width:0">
-              <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                ${c.name} ${c.isDefault ? '<span title="Cidade padrão" style="margin-left:6px">⭐</span>' : ''}
-              </div>
-              <small class="muted">Prefixo: <b>${c.prefix || ''}</b> • ${c.file?.name || 'sem arquivo'}</small>
-            </div>
-            <button class="btn" data-id="${c.id}">Carregar</button>
-          </div>
-        `).join('');
-        list.querySelectorAll('button[data-id]').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            try {
-              await (window.loadCityOnMap ? loadCityOnMap(btn.dataset.id) : Promise.resolve());
-            } catch(e) { alert('Falha ao carregar cidade'); }
-          });
-        });
-      } catch (err) {
-        console.error(err);
-        list.innerHTML = '<div class="empty"><div class="empty-ico">⚠️</div><p>Erro ao listar cidades</p></div>';
-      }
-    }
-
-    /* ========= Alerta da home (mostra 1x por versão) ========= */
-    async function loadHomeMessageOnce() {
-      try {
-        const r = await fetch('api/message.php', { cache: 'no-store' });
-        const j = await r.json();
-        const text = (j?.data?.text || '').trim();
-        const updated = j?.data?.updated_at || '';
-        if (!text) return;
-
-        const sig = `${updated}|${text}`;
-        const KEY = 'home_msg_seen_sig_v1';
-        if (localStorage.getItem(KEY) === sig) return;
-
-        showHomeAlert(text, () => localStorage.setItem(KEY, sig));
-      } catch (e) {}
-    }
-    function showHomeAlert(message, onClose) {
-      const wrap = document.createElement('div');
-      wrap.className = 'home-alert-wrap';
-      wrap.setAttribute('role', 'dialog');
-      wrap.setAttribute('aria-modal', 'true');
-
-      const card = document.createElement('div');
-      card.className = 'home-alert';
-      card.innerHTML = `
-        <header>
-          <div class="ha-icon">📣</div>
-          <h3>Informação</h3>
-          <button class="btn ghost" aria-label="Fechar" style="margin-left:auto">✕</button>
-        </header>
-        <div class="ha-body">${message.replace(/\n/g,'<br>')}</div>
-        <footer>
-          <button class="btn ghost js-close">Fechar</button>
-          <button class="btn primary js-ok">Entendi</button>
-        </footer>
-      `;
-      wrap.appendChild(card);
-      document.body.appendChild(wrap);
-
-      const close = () => { wrap.remove(); if (typeof onClose === 'function') onClose(); };
-      card.querySelector('header .ghost')?.addEventListener('click', close);
-      card.querySelector('.js-close')?.addEventListener('click', close);
-      card.querySelector('.js-ok')?.addEventListener('click', close);
-      wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
-      document.addEventListener('keydown', function onEsc(e){
-        if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
-      }, { once:true });
-    }
-
-    /* ========= Rodapé: últimas atualizações + autoload da padrão ========= */
-    function fmtWhen(ts){
-      if (!ts) return '—';
-      const d = new Date(ts * 1000);
-      const dd = String(d.getDate()).padStart(2,'0');
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yyyy = d.getFullYear();
-      const HH = String(d.getHours()).padStart(2,'0');
-      const MM = String(d.getMinutes()).padStart(2,'0');
-      return `${dd}/${mm}/${yyyy} ${HH}:${MM}`;
-    }
-    function renderUpdatesFooter(cities){
-      const el = document.getElementById('filesUpdatedAt');
-      if (!el) return;
-
-      const withFile = (cities || []).filter(c => c.file && c.file.name);
-      if (!withFile.length){
-        el.textContent = 'Últimas atualizações: —';
-        el.removeAttribute('title');
+      if (!list) {
+        console.error('❌ Elemento cityPickerList não encontrado');
         return;
       }
-      const parts = withFile
-        .sort((a,b)=> a.name.localeCompare(b.name))
-        .map(c => `${c.name}: ${fmtWhen(c.updatedAt)}`);
-      el.textContent = `Últimas atualizações: ${parts.join(' • ')}`;
 
-      const def = cities.find(x => x.isDefault);
-      if (def && def.defaultAt){
-        el.title = `Padrão: ${def.name} (desde ${fmtWhen(def.defaultAt)})`;
-      } else {
-        el.removeAttribute('title');
+      try {
+        // Mostra loading
+        list.innerHTML = `
+          <div class="empty">
+            <div class="empty-ico"><div class="system-loading"></div></div>
+            <p>Carregando cidades...</p>
+            <small>Modo: ${currentMode.toUpperCase()}</small>
+          </div>
+        `;
+
+        // Busca cidades (com fallback automático)
+        const items = await smartApiCall();
+
+        console.log(`📊 ${items.length} cidades carregadas (Modo: ${currentMode})`);
+
+        // Filtra e ordena
+        const filteredItems = items.filter(city =>
+          !searchTerm ||
+          city.name.toLowerCase().includes(searchTerm) ||
+          (city.prefix || '').toLowerCase().includes(searchTerm) ||
+          (city.file?.name || '').toLowerCase().includes(searchTerm)
+        ).sort((a, b) => a.name.localeCompare(b.name));
+
+        // Renderiza resultados
+        if (filteredItems.length === 0) {
+          list.innerHTML = `
+            <div class="empty">
+              <div class="empty-ico">🔍</div>
+              <p>Nenhuma cidade encontrada</p>
+              ${searchTerm ? '<small>Tente outro termo de busca</small>' : ''}
+              <small>Modo: ${currentMode.toUpperCase()}</small>
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = filteredItems.map(city => `
+          <div class="city-item" role="listitem">
+            <div class="city-info">
+              <div class="city-name">
+                ${city.name} ${city.isDefault ? '<span title="Cidade padrão" style="margin-left: 4px;">⭐</span>' : ''}
+                ${currentMode !== SYSTEM_MODE.ONLINE ? '<span title="Modo demonstração" style="color: orange; margin-left: 4px;">⚡</span>' : ''}
+              </div>
+              <small class="muted">
+                Prefixo: <b>${city.prefix || 'N/A'}</b> • 
+                ${city.file?.name || 'sem arquivo'}
+                ${currentMode !== SYSTEM_MODE.ONLINE ? ' • <em style="color: #6c757d;">Demonstração</em>' : ''}
+              </small>
+            </div>
+            <button class="btn ${currentMode !== SYSTEM_MODE.ONLINE ? 'secondary' : 'primary'}" 
+                    data-id="${city.id}" 
+                    data-name="${city.name}"
+                    title="${currentMode === SYSTEM_MODE.ONLINE ? 'Carregar cidade no mapa' : 'Visualização demonstrativa'}">
+              ${currentMode === SYSTEM_MODE.ONLINE ? 'Carregar' : 'Demo'}
+            </button>
+          </div>
+        `).join('');
+
+        // Event listeners para os botões
+        list.querySelectorAll('button[data-id]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const cityId = btn.dataset.id;
+            const cityName = btn.dataset.name;
+
+            try {
+              btn.textContent = 'Carregando...';
+              btn.disabled = true;
+
+              await loadCityOnMap(cityId);
+            } catch (error) {
+              console.error('Erro ao carregar cidade:', error);
+              if (currentMode !== SYSTEM_MODE.ONLINE) {
+                showDemoAlert(cityName);
+              } else {
+                showErrorAlert(cityName, error.message);
+              }
+            } finally {
+              btn.textContent = currentMode === SYSTEM_MODE.ONLINE ? 'Carregar' : 'Demo';
+              btn.disabled = false;
+            }
+          });
+        });
+
+      } catch (error) {
+        console.error('Erro crítico no renderizador:', error);
+        list.innerHTML = `
+          <div class="empty">
+            <div class="empty-ico">⚠️</div>
+            <p>Erro ao carregar cidades</p>
+            <small>${error.message}</small>
+            <small><button onclick="location.reload()" class="btn link" style="margin-top: 8px;">Recarregar página</button></small>
+          </div>
+        `;
       }
     }
-    async function bootVisitorAutoload(){
-      try{
-        const cities = await (window.apiListCities ? apiListCities() : []);
-        renderUpdatesFooter(cities);
 
-        const def = cities.find(c => c.isDefault && c.file && c.file.url);
-        if (def){
-          await (window.loadCityOnMap ? loadCityOnMap(def.id) : Promise.resolve());
-          if (window.setStatus) setStatus(`⭐ Carregada cidade padrão: ${def.name}`);
-        }
-      }catch(e){}
+    // ========= FUNÇÕES DE ALERTA =========
+    function showDemoAlert(cityName) {
+      alert(`🏙️ ${cityName}\n\nModo Demonstração\n\nEsta é uma visualização demonstrativa. Em modo online, o mapa completo seria carregado.`);
     }
 
-    /* ========= Eventos UI básicos ========= */
-    document.getElementById('btnRefreshCities')?.addEventListener('click', () =>
-      renderCityPicker(document.getElementById('cityPickerSearch')?.value)
-    );
-    document.getElementById('cityPickerSearch')?.addEventListener('input', (e) =>
-      renderCityPicker(e.target.value)
-    );
+    function showErrorAlert(cityName, error) {
+      alert(`❌ Erro ao carregar ${cityName}\n\n${error}\n\nVerifique se o servidor está funcionando corretamente.`);
+    }
 
-    /* ========= Inicialização ========= */
+    // ========= INICIALIZAÇÃO INDEPENDENTE =========
+    async function initializeSystem() {
+      if (systemInitialized) return;
+      
+      console.log('🚀 Iniciando Mapa Lino - Sistema Independente');
+      systemInitialized = true;
+      
+      // Atualiza UI inicial
+      updateStatus('Detectando ambiente...');
+      updateSystemIndicator();
+      
+      try {
+        // Detecta modo do sistema
+        currentMode = await detectSystemMode();
+        updateSystemIndicator();
+        updateFileMeta();
+        
+        // Renderiza cidades
+        await renderCityPicker();
+        
+        // Configura busca em tempo real
+        const searchInput = document.getElementById('cityPickerSearch');
+        if (searchInput) {
+          let searchTimeout;
+          searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => renderCityPicker(e.target.value), 300);
+          });
+        }
+        
+        // Atualiza status final
+        const statusMessages = {
+          [SYSTEM_MODE.ONLINE]: 'Sistema conectado e funcionando',
+          [SYSTEM_MODE.MIXED]: 'Sistema em modo limitado',
+          [SYSTEM_MODE.OFFLINE]: 'Sistema offline - Dados locais'
+        };
+        
+        updateStatus(statusMessages[currentMode]);
+        
+        // Tenta carregar cidade padrão se online
+        if (currentMode === SYSTEM_MODE.ONLINE) {
+          setTimeout(async () => {
+            try {
+              const cities = await smartApiCall();
+              const defaultCity = cities.find(c => c.isDefault);
+              if (defaultCity) {
+                console.log('📍 Tentando carregar cidade padrão:', defaultCity.name);
+                await loadCityOnMap(defaultCity.id);
+              }
+            } catch (error) {
+              console.log('Cidade padrão não carregada:', error.message);
+            }
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Erro na inicialização:', error);
+        updateStatus('Erro ao inicializar sistema');
+      }
+    }
+
+    // ========= INICIALIZAÇÃO IMEDIATA =========
     document.addEventListener('DOMContentLoaded', () => {
-      renderCityPicker();
-      loadHomeMessageOnce();
-      bootVisitorAutoload();
+      console.log('📄 DOM carregado - Iniciando sistema independente...');
+      
+      // Inicia imediatamente sem esperar script.js
+      initializeSystem();
+
+      // Tenta integrar com script.js quando disponível
+      const checkScriptLoaded = setInterval(() => {
+        if (typeof window.setStatus === 'function') {
+          clearInterval(checkScriptLoaded);
+          console.log('✅ Script.js carregado - Integração estabelecida');
+          // Agora podemos usar funções do script.js se necessário
+        }
+      }, 1000);
+
+      // Timeout para parar de verificar
+      setTimeout(() => {
+        clearInterval(checkScriptLoaded);
+      }, 10000);
     });
+
+    // Exporta funções para uso global
+    window.apiListCities = apiListCities;
+    window.loadCityOnMap = loadCityOnMap;
+    window.initializeCitySystem = initializeSystem;
+
+    console.log('🔧 Sistema de cidades carregado - Funcionamento independente');
+
   </script>
 </body>
 </html>
