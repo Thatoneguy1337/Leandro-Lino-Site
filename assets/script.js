@@ -16,7 +16,6 @@
    ========================================================= */
 
 /* ---------- Parâmetros de performance ---------- */
-// script.js - VERSÃO COMPLETA COM SISTEMA DE CACHE
 const Z_MARKERS_ON   = 15;
 const Z_LABELS_ON    = 12;
 const CHUNK_SIZE     = 1000;
@@ -1313,7 +1312,7 @@ let pIdx = 0;
 let published = null, stats = { markers: 0, lines: 0, polygons: 0 };
 let routeLayer = null;
 
-const lod = { keysContainer: null, keysRawGroup: null, keysVisible: false, blockMarkersUntilZoom: true };
+const lod = { keysContainer: null, keysRawGroup: null, keysVisible: false, blockMarkersUntilZoom: false }; // CORREÇÃO: blockMarkersUntilZoom começa como false
 const hasCluster = typeof L.markerClusterGroup === "function";
 
 const highlight = { line:null, oldStyle:null, halo:null, markers:[] };
@@ -1334,7 +1333,7 @@ function resetGroups() {
   lod.keysContainer = null;
   lod.keysRawGroup  = null;
   lod.keysVisible   = false;
-  lod.blockMarkersUntilZoom = true;
+  lod.blockMarkersUntilZoom = false; // CORREÇÃO: Sempre false
 
   Object.keys(colors).forEach(k => delete colors[k]);
   order.length = 0;
@@ -1343,6 +1342,12 @@ function resetGroups() {
   allPostMarkers = [];
 
   clearEmphasis();
+  
+  // Força re-render dos painéis
+  setTimeout(() => {
+    renderLayersPanelLines();
+    renderLayersPanelPosts();
+  }, 100);
 }
 
 function refreshCounters() {
@@ -1350,6 +1355,7 @@ function refreshCounters() {
   $("#lineCount") && ($("#lineCount").textContent = stats.lines);
   $("#polygonCount") && ($("#polygonCount").textContent = stats.polygons);
 }
+
 function renderLayersPanelLines() {
   if (!layersListLines) return;
   layersListLines.innerHTML = "";
@@ -1361,7 +1367,11 @@ function renderLayersPanelLines() {
     const color = colors[name];
     const row = document.createElement("label");
     row.className = "layer-item";
-    row.innerHTML = `<input type="checkbox" checked data-af="${name}"><span class="layer-color" style="background:${color}"></span><span class="layer-name">${name}</span>`;
+    
+    // Verifica se a camada está atualmente no mapa
+    const isCurrentlyVisible = groups[name] && map.hasLayer(groups[name]);
+    
+    row.innerHTML = `<input type="checkbox" ${isCurrentlyVisible ? 'checked' : ''} data-af="${name}"><span class="layer-color" style="background:${color}"></span><span class="layer-name">${name}</span>`;
     const cb = row.querySelector("input");
     cb.onchange = () => {
       if (cb.checked) {
@@ -1375,6 +1385,7 @@ function renderLayersPanelLines() {
     layersListLines.appendChild(row);
   });
 }
+
 function renderLayersPanelPosts() {
   if (!layersListPosts) return;
   layersListPosts.innerHTML = "";
@@ -1382,13 +1393,44 @@ function renderLayersPanelPosts() {
     layersListPosts.innerHTML = `<div class="empty"><div class="empty-ico">📍</div><p>Nenhum posto</p></div>`;
     return;
   }
+  
   postOrder.forEach((gname) => {
     const color = POST_COLORS[gname] || POST_COLORS.OUTROS;
     const row = document.createElement("label");
     row.className = "layer-item";
-    row.innerHTML = `<input type="checkbox" checked data-pg="${gname}"><span class="layer-color" style="background:${color}"></span><span class="layer-name">${gname}</span>`;
+    
+    // POR PADRÃO, TODOS OS GRUPOS DEVEM ESTAR SELECIONADOS
+    // Garante que a camada está no mapa
+    if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
+      postGroups[gname].addTo(map);
+    }
+    
+    row.innerHTML = `
+      <input type="checkbox" checked data-pg="${gname}">
+      <span class="layer-color" style="background:${color}"></span>
+      <span class="layer-name">${gname}</span>
+    `;
+    
     const cb = row.querySelector("input");
-    cb.onchange = () => cb.checked ? postGroups[gname].addTo(map) : map.removeLayer(postGroups[gname]);
+    cb.onchange = () => {
+      if (cb.checked) {
+        // Adiciona ao mapa se não estiver já
+        if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
+          postGroups[gname].addTo(map);
+        }
+        // CORREÇÃO: Garante que o container de markers também seja mostrado
+        if (lod.keysContainer && !map.hasLayer(lod.keysContainer)) {
+          map.addLayer(lod.keysContainer);
+          lod.keysVisible = true;
+        }
+      } else {
+        // Remove do mapa se estiver presente
+        if (postGroups[gname] && map.hasLayer(postGroups[gname])) {
+          map.removeLayer(postGroups[gname]);
+        }
+      }
+    };
+    
     layersListPosts.appendChild(row);
   });
 }
@@ -1653,12 +1695,10 @@ function updateLOD() {
   const z = map.getZoom();
   const canShowMarkers = (z >= Z_MARKERS_ON) && !lod.blockMarkersUntilZoom;
 
-  if (canShowMarkers && !lod.keysVisible && lod.keysContainer) {
+  // CORREÇÃO: SEMPRE MOSTRAR SE NÃO HÁ BLOQUEIO
+  if (!lod.blockMarkersUntilZoom && lod.keysContainer && !lod.keysVisible) {
     map.addLayer(lod.keysContainer);
     lod.keysVisible = true;
-  } else if ((!canShowMarkers || !lod.keysContainer) && lod.keysVisible) {
-    map.removeLayer(lod.keysContainer);
-    lod.keysVisible = false;
   }
 
   const IS_TOUCH = matchMedia?.('(pointer:coarse)').matches;
@@ -1770,6 +1810,7 @@ async function parseKML(text, cityHint = "") {
     localIndex.groups = [];
     stats = { markers: 0, lines: 0, polygons: 0 };
 
+    // CORREÇÃO: SEMPRE ADICIONAR O CONTAINER AO MAPA - SEM CONDIÇÕES
     if (hasCluster) {
       lod.keysContainer = L.markerClusterGroup({
         chunkedLoading: true,
@@ -1777,12 +1818,15 @@ async function parseKML(text, cityHint = "") {
         spiderfyOnMaxZoom: false,
         showCoverageOnHover: false
       });
+      lod.keysContainer.addTo(map);
+      lod.keysVisible = true;
     } else {
       lod.keysRawGroup = L.layerGroup();
       lod.keysContainer = lod.keysRawGroup;
+      lod.keysContainer.addTo(map);
+      lod.keysVisible = true;
     }
-    lod.keysVisible = false;
-    lod.blockMarkersUntilZoom = true;
+    lod.blockMarkersUntilZoom = false; // CORREÇÃO: SEMPRE FALSE
 
     const placemarks = Array.from(xml.querySelectorAll("Placemark"));
     if (!placemarks.length) throw new Error("Sem Placemark");
@@ -1816,6 +1860,8 @@ async function parseKML(text, cityHint = "") {
             if (!postGroups[gName]) { 
               postGroups[gName] = L.layerGroup(); 
               postOrder.push(gName); 
+              // ADICIONA AO MAPA POR PADRÃO
+              postGroups[gName].addTo(map);
             }
 
             const pot   = getPotencia(pm);
@@ -1913,8 +1959,7 @@ async function parseKML(text, cityHint = "") {
       if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
     }
 
-    map.once('zoomend', () => { lod.blockMarkersUntilZoom = false; updateLOD(); });
-
+    // CORREÇÃO: ATUALIZA LOD IMEDIATAMENTE, SEM ESPERAR ZOOM
     updateLOD();
     updatePostLabels();
     setStatus(`✅ Publicado: ${stats.markers} postos, ${stats.lines} linhas, ${stats.polygons} polígonos`);
@@ -1951,7 +1996,6 @@ fileInput?.addEventListener("change", async (e) => {
   if (f) {
     const cityGuess = prettyCityFromFilename(f.name);
     const last = f.lastModified ? new Date(f.lastModified) : new Date();
-    // setUpdateBanner(cityGuess || 'Arquivo local', last);
   }
   if (!f) return;
   currentFile && (currentFile.textContent = f.name);
@@ -2030,22 +2074,33 @@ showAllBtn?.addEventListener("click", () => {
 
 hideAllPostsBtn?.addEventListener("click", () => {
   postOrder.forEach((gname) => {
-    if (postGroups[gname]) map.removeLayer(postGroups[gname]);
+    if (postGroups[gname] && map.hasLayer(postGroups[gname])) {
+      map.removeLayer(postGroups[gname]);
+    }
+    // Atualiza os checkboxes imediatamente
     const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
     if (cb) cb.checked = false;
   });
+  
+  // Também remove o container de markers
   if (lod.keysContainer && map.hasLayer(lod.keysContainer)) {
     map.removeLayer(lod.keysContainer);
     lod.keysVisible = false;
   }
 });
+
 showAllPostsBtn?.addEventListener("click", () => {
   postOrder.forEach((gname) => {
-    if (postGroups[gname] && !map.hasLayer(postGroups[gname])) postGroups[gname].addTo(map);
+    if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
+      postGroups[gname].addTo(map);
+    }
+    // Atualiza os checkboxes imediatamente
     const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
     if (cb) cb.checked = true;
   });
-  if (!lod.keysVisible && lod.keysContainer && map.getZoom() >= Z_MARKERS_ON && !lod.blockMarkersUntilZoom) {
+  
+  // Garante que o container de markers também seja mostrado
+  if (!lod.keysVisible && lod.keysContainer) {
     map.addLayer(lod.keysContainer);
     lod.keysVisible = true;
   }
