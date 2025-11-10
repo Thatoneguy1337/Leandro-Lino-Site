@@ -132,6 +132,9 @@ function saveSessionState() {
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
 }
 
+// Holds the state from the last session to be applied after data is loaded
+window.restoredState = null;
+
 // Restaurar última sessão
 function restoreLastSession() {
     try {
@@ -152,12 +155,61 @@ function restoreLastSession() {
             currentFile.textContent = state.currentFile;
         }
         
+        // Store state to be applied later, instead of applying it now
+        window.restoredState = state;
+        
         setStatus('🔄 Sessão anterior restaurada');
         return true;
         
     } catch (error) {
         console.error('❌ Erro ao restaurar sessão:', error);
+        window.restoredState = null;
         return false;
+    }
+}
+
+function applyLayerVisibilityState(state) {
+    if (!state) return;
+
+    const { visibleLayers, visiblePosts } = state;
+
+    // Apply line layer visibility
+    if (visibleLayers && Array.isArray(visibleLayers)) {
+        order.forEach(name => {
+            const shouldBeVisible = visibleLayers.includes(name);
+            const layer = groups[name];
+            if (!layer) return;
+            const isVisible = map.hasLayer(layer);
+            
+            if (shouldBeVisible && !isVisible) map.addLayer(layer);
+            else if (!shouldBeVisible && isVisible) map.removeLayer(layer);
+            
+            const cb = layersListLines?.querySelector(`input[data-af="${name}"]`);
+            if (cb) cb.checked = shouldBeVisible;
+        });
+    } else if (layersListLines) {
+        // Default behavior if nothing in session: check all line layers
+        layersListLines.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    }
+
+    // Apply post group visibility
+    if (visiblePosts && Array.isArray(visiblePosts)) {
+        postOrder.forEach(gname => {
+            const shouldBeVisible = visiblePosts.includes(gname);
+            const markers = postGroups[gname];
+            if (!markers) return;
+
+            // All markers are added by default during parsing. We only need to remove the ones that should be hidden.
+            if (!shouldBeVisible) {
+                lod.keysContainer.removeLayers(markers);
+            }
+
+            const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
+            if (cb) cb.checked = shouldBeVisible;
+        });
+    } else if (layersListPosts) {
+        // Default behavior: check all post groups
+        layersListPosts.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
     }
 }
 
@@ -177,12 +229,17 @@ function getVisibleLayers() {
 // Obter posts visíveis
 function getVisiblePosts() {
     const visible = [];
-    if (window.postOrder && window.postGroups) {
-        window.postOrder.forEach(name => {
-            if (window.postGroups[name] && map.hasLayer(window.postGroups[name])) {
-                visible.push(name);
+    // The source of truth for post group visibility is the state of the checkboxes in the UI.
+    if (layersListPosts) {
+        const checkboxes = layersListPosts.querySelectorAll('input[type="checkbox"][data-pg]');
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                visible.push(cb.dataset.pg);
             }
         });
+    } else if (window.postOrder) {
+        // If UI isn't rendered, assume all are visible as that's the default state.
+        return [...window.postOrder];
     }
     return visible;
 }
@@ -647,6 +704,7 @@ async function renderFromProcessed(data, cityHint = "") {
   const groupBounds = {};
   const boundsLines = L.latLngBounds();
   const MIN_START_ZOOM = 12;
+const MAX_START_ZOOM = 18;
 
   showLoading(true, `Renderizando mapa otimizado de ${cityHint || "sua cidade"}…`);
 
@@ -737,10 +795,18 @@ async function renderFromProcessed(data, cityHint = "") {
     if (boundsLines.isValid()) {
       map.fitBounds(boundsLines, { padding: [48, 48] });
       if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      if (map.getZoom() > MAX_START_ZOOM) map.setZoom(MAX_START_ZOOM);
     }
 
     updateLOD();
     updatePostLabels();
+
+    // Apply restored layer visibility state if it exists
+    if (window.restoredState) {
+        applyLayerVisibilityState(window.restoredState);
+        window.restoredState = null; // Consume it
+    }
+
     setStatus(`✅ Mapa otimizado carregado: ${stats.markers} postos, ${stats.lines} linhas`);
 
   } catch (e) {
@@ -2077,11 +2143,19 @@ async function parseKML(text, cityHint = "") {
     if (boundsLines.isValid()) {
       map.fitBounds(boundsLines, { padding: [48, 48] });
       if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      if (map.getZoom() > MAX_START_ZOOM) map.setZoom(MAX_START_ZOOM);
     }
 
     // CORREÇÃO: ATUALIZA LOD IMEDIATAMENTE, SEM ESPERAR ZOOM
     updateLOD();
     updatePostLabels();
+
+    // Apply restored layer visibility state if it exists
+    if (window.restoredState) {
+        applyLayerVisibilityState(window.restoredState);
+        window.restoredState = null; // Consume it
+    }
+    
     setStatus(`✅ Publicado: ${stats.markers} postos, ${stats.lines} linhas, ${stats.polygons} polígonos`);
 
   } catch (e) {
