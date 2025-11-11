@@ -73,6 +73,73 @@ const prettyCityFromFilename = (name = "") => {
     .trim().toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
 };
 
+// Global function for geolocation
+function locateOnceAnimated() {
+  console.log('📍 locateOnceAnimated called');
+  if (!navigator.geolocation) {
+    setStatus('❌ Geolocation não suportada pelo seu navegador.');
+    console.error('Geolocation not supported.');
+    return;
+  }
+
+  setStatus('🌍 Localizando...');
+  showLoading(true, 'Obtendo sua localização...');
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      const latlng = [latitude, longitude];
+      console.log('✅ Geolocation success:', latlng);
+      map.flyTo(latlng, Math.max(map.getZoom(), 15), { duration: 1.5 });
+
+      const tempMarker = L.circleMarker(latlng, {
+        radius: 10,
+        color: '#000',
+        weight: 2,
+        fillColor: '#3388ff',
+        fillOpacity: 0.8
+      }).addTo(map);
+
+      tempMarker.bindPopup(`
+        <b>Sua Localização</b><br>
+        Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)}
+      `).openPopup();
+
+      setTimeout(() => {
+        map.removeLayer(tempMarker);
+      }, 5000);
+
+      setStatus('✅ Localização encontrada!');
+      showLoading(false);
+    },
+    (error) => {
+      console.error('❌ Geolocation error:', error);
+      showLoading(false);
+      let message = '❌ Erro ao obter localização.';
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          message = '❌ Permissão de localização negada.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          message = '❌ Localização indisponível.';
+          break;
+        case error.TIMEOUT:
+          message = '❌ Tempo esgotado ao obter localização.';
+          break;
+        case error.UNKNOWN_ERROR:
+          message = '❌ Erro desconhecido de localização.';
+          break;
+      }
+      setStatus(message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+}
+
 /* ========================
    CACHE DE ÚLTIMOS UPLOADS
    ======================== */
@@ -1140,7 +1207,7 @@ function makeBaseController(map){
     bTer?.addEventListener('click', () => setBase(baseCur !== 'terrain' ? 'terrain' : 'osm'));
     bIn?.addEventListener('click',  () => map.zoomIn());
     bOut?.addEventListener('click', () => map.zoomOut());
-    bLoc?.addEventListener('click', () => { locateOnceAnimated(); });
+    bLoc?.addEventListener('click', () => { window.locateOnceAnimated(); }); // Call global function
   }
 
   return { setBase, wireButtons, get current(){ return baseCur; }, bases, labels };
