@@ -1980,7 +1980,7 @@ map.on('click', (e)=>{
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
   const totalBounds = L.latLngBounds();
-  const MIN_START_ZOOM = 12;
+  const MIN_START_ZOOM = 18;
   const seenLines = new Set();
 
   showLoading(true, `Carregando mapa elétrico de ${cityHint || "sua cidade"}…`);
@@ -2146,8 +2146,21 @@ async function parseKML(text, cityHint = "") {
     refreshCounters();
 
     if (totalBounds.isValid()) {
-      map.fitBounds(totalBounds, { padding: [48, 48] });
-      if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      const ne = totalBounds.getNorthEast();
+      const sw = totalBounds.getSouthWest();
+      const distance = ne.distanceTo(sw); // distance in meters
+
+      // If all points are very close, don't zoom in too far.
+      // Set a fixed zoom instead of fitting bounds.
+      if (distance < 50) { 
+        map.flyTo(totalBounds.getCenter(), 16, { duration: 0.8 }); // Use flyTo for a smooth animation
+      } else {
+        map.fitBounds(totalBounds, { padding: [48, 48] });
+      }
+
+      if (map.getZoom() < MIN_START_ZOOM) {
+        map.setZoom(MIN_START_ZOOM);
+      }
     }
 
     // CORREÇÃO: ATUALIZA LOD IMEDIATAMENTE, SEM ESPERAR ZOOM
