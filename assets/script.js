@@ -194,22 +194,36 @@ function applyLayerVisibilityState(state) {
 
     // Apply post group visibility
     if (visiblePosts && Array.isArray(visiblePosts)) {
+        // First, remove all markers from the container to ensure a clean state
+        if (lod.keysContainer && allPostMarkers.length > 0) {
+            lod.keysContainer.removeLayers(allPostMarkers.map(p => p.m));
+        }
+
         postOrder.forEach(gname => {
             const shouldBeVisible = visiblePosts.includes(gname);
             const markers = postGroups[gname];
             if (!markers) return;
 
-            // All markers are added by default during parsing. We only need to remove the ones that should be hidden.
-            if (!shouldBeVisible) {
-                lod.keysContainer.removeLayers(markers);
+            if (shouldBeVisible) {
+                lod.keysContainer.addLayers(markers);
             }
+            // If not shouldBeVisible, they remain removed (from the initial clear)
 
             const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
-            if (cb) cb.checked = shouldBeVisible;
+            if (cb) cb.checked = shouldBeVisible; // Update checkbox state
         });
     } else if (layersListPosts) {
-        // Default behavior: check all post groups
-        layersListPosts.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        // Default behavior: check all post groups and ensure they are visible
+        // All markers are added by default during parsing, so just ensure checkboxes are checked
+        layersListPosts.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+            const gname = cb.dataset.pg;
+            const markers = postGroups[gname];
+            if (markers) {
+                // Ensure all markers are added if no specific state is restored
+                lod.keysContainer.addLayers(markers);
+            }
+        });
     }
 }
 
