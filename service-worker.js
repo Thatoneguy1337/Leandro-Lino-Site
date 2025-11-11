@@ -1,5 +1,5 @@
 /* GeoViewer Pro — Service Worker (Cache Agressivo + Performance Máxima) */
-const VERSION = 'v2.0.0';
+const VERSION = 'v2.0.1'; // Increment version to trigger update
 const CORE_CACHE = `geoviewer-core-${VERSION}`;
 const RUNTIME_CACHE = `geoviewer-runtime-${VERSION}`;
 
@@ -8,6 +8,7 @@ const IMMEDIATE_ASSETS = [
   './',
   'index.html',
   'assets/styles.css',
+  'assets/script.js', // Added script.js to immediate assets
   'assets/img/image.png',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'

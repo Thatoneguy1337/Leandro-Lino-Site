@@ -35,6 +35,8 @@ const MAP_STATE_KEY = 'gv_map_state_v3';
 const LAST_SESSION_KEY = 'gv_last_session_v2';
 const API_CITIES = 'api/cities.php';
 
+window.currentCityId = null; // Declare global variable
+
 /* ----------------- Utils ----------------- */
 const $ = (s, r = document) => r.querySelector(s);
 const statusEl = $("#statusText"),
@@ -126,22 +128,27 @@ function saveSessionState() {
         mapView: {
             center: [map.getCenter().lat, map.getCenter().lng],
             zoom: map.getZoom()
-        }
+        },
+        cityId: window.currentCityId // Save the current city ID
     };
     
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
 }
 
 // Restaurar última sessão
+// Holds the state from the last session to be applied after data is loaded
+window.restoredState = null;
+
+// Restaurar última sessão
 function restoreLastSession() {
     try {
         const saved = localStorage.getItem(LAST_SESSION_KEY);
-        if (!saved) return false;
+        if (!saved) return null;
         
         const state = JSON.parse(saved);
         if (Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
             localStorage.removeItem(LAST_SESSION_KEY);
-            return false;
+            return null;
         }
         
         if (state.mapView && state.mapView.center) {
@@ -152,12 +159,14 @@ function restoreLastSession() {
             currentFile.textContent = state.currentFile;
         }
         
+        window.restoredState = state;
         setStatus('🔄 Sessão anterior restaurada');
-        return true;
+        return state; // Return the whole state object
         
     } catch (error) {
         console.error('❌ Erro ao restaurar sessão:', error);
-        return false;
+        window.restoredState = null;
+        return null;
     }
 }
 
@@ -225,8 +234,14 @@ async function loadLastUploadAuto() {
     showLoading(true, 'Restaurando última sessão');
     
     try {
-        const sessionRestored = restoreLastSession();
-        if (sessionRestored) {
+        const restoredState = restoreLastSession(); // Now returns the state object or null
+        if (restoredState) {
+            // If a session was restored, try to load the city associated with it
+            if (restoredState.cityId) {
+                await loadCityOnMap(restoredState.cityId);
+                showLoading(false);
+                return true;
+            }
             showLoading(false);
             return true;
         }
@@ -592,6 +607,8 @@ async function loadCityOnMap(id) {
         
         setStatus(`📥 Carregando ${city.name}...`);
         showLoading(true, `Carregando ${city.name}`);
+
+        window.currentCityId = id; // Set the current city ID
 
         const useProcessed = city.file.processedUrl;
         
