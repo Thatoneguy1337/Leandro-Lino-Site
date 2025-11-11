@@ -610,23 +610,9 @@ async function loadCityOnMap(id) {
 
         window.currentCityId = id; // Set the current city ID
 
-        const useProcessed = city.file.processedUrl;
-        
-        if (useProcessed) {
-            console.log(`🚀 Usando cache otimizado para ${city.name}`);
-            try {
-                const response = await timeoutFetch(city.file.processedUrl);
-                if (!response.ok) throw new Error(`Falha ao baixar JSON processado (${response.status})`);
-                const data = await response.json();
-                await renderFromProcessed(data, city.name);
-            } catch (e) {
-                console.warn(`⚠️ Falha no cache otimizado, usando KMZ original. Erro:`, e);
-                await loadOriginalKMZ(city);
-            }
-        } else {
-            console.log(`🐌 Usando KMZ original para ${city.name} (sem cache otimizado)`);
-            await loadOriginalKMZ(city);
-        }
+        // Always use the original KMZ/KML as processedUrl is not available
+        console.log(`🐌 Carregando KMZ original para ${city.name}`);
+        await loadOriginalKMZ(city);
         
         if (currentFile) {
             currentFile.textContent = `${city.file.name} (${city.name})`;
