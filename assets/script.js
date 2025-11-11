@@ -18,7 +18,7 @@
 /* ---------- Parâmetros de performance ---------- */
 const Z_MARKERS_ON   = 15;
 const Z_LABELS_ON    = 12;
-const CHUNK_SIZE     = 1000;
+const CHUNK_SIZE     = 2000;
 const LINE_SMOOTH    = 2.0;
 const LINE_BASE_W = 4;
 const LINE_MAX_W  = 6;
@@ -1020,7 +1020,15 @@ document.addEventListener("click", (e) => {
   }
 });
 
-const SIMPLIFY_TOL_M = 4.0;
+const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// Tolerances for the LOD pipeline, in increasing order of aggression.
+const LOD_TOLS = {
+    fine:   IS_MOBILE ? 15.0 : 8.0,
+    mid:    IS_MOBILE ? 30.0 : 15.0,
+    coarse: IS_MOBILE ? 60.0 : 35.0
+};
+
 const MAX_POINTS_PER_GEOM = 800;
 const MIN_SKIP_M     = 2.0;
 
@@ -1059,7 +1067,7 @@ function rdpsSimplify(pointsXY, tol){
   for(let k=0;k<keep.length;k++) if (keep[k]) outIdx.push(k);
   return outIdx;
 }
-function simplifyPathMeters(coords, tolM = SIMPLIFY_TOL_M){
+function simplifyPathMeters(coords, tolM = LOD_TOLS.fine){
   if (!coords || coords.length <= 2) return coords || [];
   const out = [];
   let last = coords[0];
@@ -1088,7 +1096,6 @@ function simplifyPathMeters(coords, tolM = SIMPLIFY_TOL_M){
   return simp;
 }
 
-const LOD_TOLS = { coarse: 30, mid: 12, fine: SIMPLIFY_TOL_M };
 function buildSimpLevels(coords){
   const fine = simplifyPathMeters(coords, LOD_TOLS.fine);
   const mid  = simplifyPathMeters(fine,  LOD_TOLS.mid);
@@ -1980,7 +1987,7 @@ map.on('click', (e)=>{
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
   const totalBounds = L.latLngBounds();
-  const MIN_START_ZOOM = 18;
+  const MIN_START_ZOOM = 14;
   const seenLines = new Set();
 
   showLoading(true, `Carregando mapa elétrico de ${cityHint || "sua cidade"}…`);
@@ -2020,121 +2027,103 @@ async function parseKML(text, cityHint = "") {
     if (!placemarks.length) throw new Error("Sem Placemark");
 
     const keyIndex = [];
-    const CHUNK = Math.max(600, Math.min(CHUNK_SIZE || 800, 1200));
+    let lastYieldTime = performance.now();
 
-    for (let i = 0; i < placemarks.length; i += CHUNK) {
-      const chunk = placemarks.slice(i, i + CHUNK);
-      const pct = Math.min(100, Math.round((i / placemarks.length) * 100));
-      showLoading(true, `Processando (${pct}%)…`);
+    for (let i = 0; i < placemarks.length; i++) {
+      const pm = placemarks[i];
+      const rawName = pm.querySelector("name")?.textContent?.trim() || `Ponto`;
+      const alim = getAlim(pm);
 
-      for (const pm of chunk) {
-        const rawName = pm.querySelector("name")?.textContent?.trim() || `Ponto`;
-        const alim = getAlim(pm);
-
-        const point = pm.querySelector(":scope > Point > coordinates");
-        if (point) {
-          const coords = parseCoordBlock(point.textContent);
-          if (coords.length) {
-            const [lat, lng] = coords[0];
-            totalBounds.extend(coords[0]); // Adiciona ponto aos limites totais
-            const autoCode = getOrCreateKeyCodeAuto(
-              pm, lat, lng, fileInput?.files?.[0]?.name || currentFile?.textContent || ""
-            );
-
-            localIndex.points.push({ name: rawName, code: autoCode, lat, lon: lng });
-            keyIndex.push({ lat, lng, code: autoCode });
-
-            const gName = postoGroupByName(rawName, pm);
-            const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
-            if (!postGroups[gName]) { 
-              postGroups[gName] = L.layerGroup(); 
-              postOrder.push(gName); 
-              // ADICIONA AO MAPA POR PADRÃO
-              postGroups[gName].addTo(map);
-            }
-
-            const pot   = getPotencia(pm);
-            const label = `<b>${rawName}</b>`;
-            const alimDisplay = guessGroupForPoint(pm, lat, lng, alim);
-            const extra = `<br><small>Alim:</small> <b>${alimDisplay || "—"}</b>`
-                        + (pot ? `<br><small>Potência:</small> <b>${pot}</b>` : ``)
-                        + `<br><small>Cód.:</small> <b>${autoCode}</b>`;
-
-            const marker = makePostMarker(lat, lng, color, label, extra);
-            marker.setGroupName(alimDisplay);
-
-            allPostMarkers.push({ m: marker, lat, lng, text: rawName });
-
-            lod.keysContainer.addLayer(marker);
-            postGroups[gName].addLayer(marker);
-
-            stats.markers++;
+      const point = pm.querySelector(":scope > Point > coordinates");
+      if (point) {
+        const coords = parseCoordBlock(point.textContent);
+        if (coords.length) {
+          const [lat, lng] = coords[0];
+          totalBounds.extend(coords[0]);
+          const autoCode = getOrCreateKeyCodeAuto(pm, lat, lng, cityHint);
+          localIndex.points.push({ name: rawName, code: autoCode, lat, lon: lng });
+          keyIndex.push({ lat, lng, code: autoCode });
+          const gName = postoGroupByName(rawName, pm);
+          const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
+          if (!postGroups[gName]) {
+            postGroups[gName] = L.layerGroup();
+            postOrder.push(gName);
+            postGroups[gName].addTo(map);
           }
-          continue;
-        }
-
-        const lineNodes = pm.querySelectorAll(":scope > LineString > coordinates, MultiGeometry LineString coordinates");
-        if (lineNodes.length) {
-          lineNodes.forEach(ls => {
-            const coordsRaw = parseCoordBlock(ls.textContent);
-            const coords    = simplifyPathMeters(coordsRaw);
-            if (coords.length > 1) {
-              const ctr = centroidLatLng(coords);
-              const grp = decideGroupForGeometry(pm, ctr, keyIndex);
-
-              const sig = lineSignature(grp, coords);
-              if (seenLines.has(sig)) return;
-              seenLines.add(sig);
-
-              if (!groups[grp]) {
-                groups[grp] = L.layerGroup();
-                published.addLayer(groups[grp]);
-                order.push(grp);
-              }
-              const color = nextColor(grp);
-              const poly = makeLODPolyline(coords, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
-
-              attachLineTooltip(poly, grp);
-              groups[grp].addLayer(poly);
-
-              const gb = (groupBounds[grp] ??= L.latLngBounds());
-              coords.forEach(([lt, lg]) => { gb.extend([lt, lg]); totalBounds.extend([lt, lg]); });
-
-              stats.lines++;
-            }
-          });
-          continue;
-        }
-
-        const polyNodes = pm.querySelectorAll(":scope > Polygon outerBoundaryIs coordinates, MultiGeometry Polygon outerBoundaryIs coordinates");
-        if (polyNodes.length) {
-          polyNodes.forEach(pg => {
-            const ringRaw = parseCoordBlock(pg.textContent);
-            const coords  = simplifyPathMeters(ringRaw);
-            if (coords.length > 2) {
-              const ctr = centroidLatLng(coords);
-              const grp = decideGroupForGeometry(pm, ctr, keyIndex);
-
-              if (!groups[grp]) {
-                groups[grp] = L.layerGroup();
-                published.addLayer(groups[grp]);
-                order.push(grp);
-              }
-              const color = nextColor(grp);
-              const p = L.polygon(coords, {
-                color, weight: 2.5, fillColor: color, fillOpacity: 0.25,
-                updateWhenZooming: false, renderer: fastRenderer
-              });
-              groups[grp].addLayer(p);
-              stats.polygons++;
-              // Adiciona polígono aos limites totais
-              coords.forEach(([lt, lg]) => totalBounds.extend([lt, lg]));
-            }
-          });
-          continue;
+          const pot = getPotencia(pm);
+          const label = `<b>${rawName}</b>`;
+          const alimDisplay = guessGroupForPoint(pm, lat, lng, alim);
+          const extra = `<br><small>Alim:</small> <b>${alimDisplay || "—"}</b>`
+                      + (pot ? `<br><small>Potência:</small> <b>${pot}</b>` : ``)
+                      + `<br><small>Cód.:</small> <b>${autoCode}</b>`;
+          const marker = makePostMarker(lat, lng, color, label, extra);
+          marker.setGroupName(alimDisplay);
+          allPostMarkers.push({ m: marker, lat, lng, text: rawName });
+          lod.keysContainer.addLayer(marker);
+          postGroups[gName].addLayer(marker);
+          stats.markers++;
         }
       }
-      await nextIdle();
+
+      const lineNodes = pm.querySelectorAll(":scope > LineString > coordinates, MultiGeometry LineString coordinates");
+      if (lineNodes.length) {
+        lineNodes.forEach(ls => {
+          const coordsRaw = parseCoordBlock(ls.textContent);
+          const coords = simplifyPathMeters(coordsRaw);
+          if (coords.length > 1) {
+            const ctr = centroidLatLng(coords);
+            const grp = decideGroupForGeometry(pm, ctr, keyIndex);
+            const sig = lineSignature(grp, coords);
+            if (seenLines.has(sig)) return;
+            seenLines.add(sig);
+            if (!groups[grp]) {
+              groups[grp] = L.layerGroup();
+              published.addLayer(groups[grp]);
+              order.push(grp);
+            }
+            const color = nextColor(grp);
+            const poly = makeLODPolyline(coords, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
+            attachLineTooltip(poly, grp);
+            groups[grp].addLayer(poly);
+            const gb = (groupBounds[grp] ??= L.latLngBounds());
+            coords.forEach(([lt, lg]) => { gb.extend([lt, lg]); totalBounds.extend([lt, lg]); });
+            stats.lines++;
+          }
+        });
+      }
+
+      const polyNodes = pm.querySelectorAll(":scope > Polygon outerBoundaryIs coordinates, MultiGeometry Polygon outerBoundaryIs coordinates");
+      if (polyNodes.length) {
+        polyNodes.forEach(pg => {
+          const ringRaw = parseCoordBlock(pg.textContent);
+          const coords = simplifyPathMeters(ringRaw);
+          if (coords.length > 2) {
+            const ctr = centroidLatLng(coords);
+            const grp = decideGroupForGeometry(pm, ctr, keyIndex);
+            if (!groups[grp]) {
+              groups[grp] = L.layerGroup();
+              published.addLayer(groups[grp]);
+              order.push(grp);
+            }
+            const color = nextColor(grp);
+            const p = L.polygon(coords, {
+              color, weight: 2.5, fillColor: color, fillOpacity: 0.25,
+              updateWhenZooming: false, renderer: fastRenderer
+            });
+            groups[grp].addLayer(p);
+            stats.polygons++;
+            coords.forEach(([lt, lg]) => totalBounds.extend([lt, lg]));
+          }
+        });
+      }
+
+      const now = performance.now();
+      if (now - lastYieldTime > 16) {
+        const pct = Math.round((i / placemarks.length) * 100);
+        showLoading(true, `Processando (${pct}%)…`);
+        await nextIdle();
+        lastYieldTime = now;
+      }
     }
 
     Object.entries(groupBounds).forEach(([name, bbox]) => {
