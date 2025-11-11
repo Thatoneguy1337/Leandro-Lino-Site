@@ -1,5 +1,5 @@
 /* GeoViewer Pro — Service Worker (Cache Agressivo + Performance Máxima) */
-const VERSION = 'v2.0.1'; // Increment version to trigger update
+const VERSION = 'v2.0.2'; // Increment version to trigger update
 const CORE_CACHE = `geoviewer-core-${VERSION}`;
 const RUNTIME_CACHE = `geoviewer-runtime-${VERSION}`;
 
@@ -129,14 +129,14 @@ async function staleWhileRevalidate(request) {
   const fetchPromise = fetch(request)
     .then(async (response) => {
       if (response.ok) {
-        await cache.put(request, response).catch(() => {});
+        await cache.put(request, response.clone()).catch(() => {});
       }
       return response;
     })
     .catch(() => {}); // Silencia erros de atualização
 
   // Não espera pela network - retorna cached ou faz fetch
-  return cached || fetchPromise || Response.error();
+  return cached || fetchPromise || new Response(null, {status: 404});
 }
 
 /* -------- ROTEAMENTO INTELIGENTE -------- */
@@ -154,22 +154,27 @@ self.addEventListener('fetch', (event) => {
     url.search.includes('nocache=true');
 
   if (shouldBypass) {
+    // Não usar cache, ir direto para a rede
     event.respondWith(fetch(request));
     return;
   }
 
   // 🎯 Estratégias específicas por tipo de recurso
-  switch (true) {
+  switch (request.destination) {
     // HTML - Sempre fresco
-    case request.mode === 'navigate':
+    case 'navigate':
       event.respondWith(networkFirst(request));
       break;
 
-    // CSS/JS/Imagens - Cache agressivo
-    case request.destination === 'style':
-    case request.destination === 'script':
-    case request.destination === 'image':
+    // CSS & Imagens - Cache agressivo
+    case 'style':
+    case 'image':
       event.respondWith(cacheFirst(request));
+      break;
+
+    // JS - Rápido e sempre atualizado em background
+    case 'script':
+      event.respondWith(staleWhileRevalidate(request));
       break;
 
     // Fontes e outros - SWR
