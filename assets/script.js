@@ -663,28 +663,37 @@ async function loadCityOnMap(id) {
         
         setStatus(`📥 Carregando ${city.name}...`);
         showLoading(true, `Carregando ${city.name}`);
-
-        const useProcessed = city.file.processedUrl;
         
-        if (useProcessed) {
-            console.log(`🚀 Usando cache otimizado para ${city.name}`);
-            try {
-                const response = await timeoutFetch(city.file.processedUrl);
-                if (!response.ok) throw new Error(`Falha ao baixar JSON processado (${response.status})`);
-                const data = await response.json();
-                await renderFromProcessed(data, city.name);
-            } catch (e) {
-                console.warn(`⚠️ Falha no cache otimizado, usando KMZ original. Erro:`, e);
-                await loadOriginalKMZ(city);
-            }
+        const url = city.file.url;
+        const isKmz = url.toLowerCase().endsWith('.kmz');
+        const response = await timeoutFetch(url);
+        if (!response.ok) throw new Error('Falha ao baixar');
+        
+        if (isKmz) {
+            const blob = await response.blob();
+            const file = new File([blob], city.file.name, { 
+                type: 'application/vnd.google-earth.kmz' 
+            });
+            await handleFileUploadWithCache(file, city.id, city.name);
         } else {
-            console.log(`🐌 Usando KMZ original para ${city.name} (sem cache otimizado)`);
-            await loadOriginalKMZ(city);
+            const text = await response.text();
+            if (typeof parseKML === 'function') {
+                await parseKML(text, city.name);
+                const uploadInfo = {
+                    city_id: city.id,
+                    city_name: city.name,
+                    file_name: city.file.name,
+                    file_path: url,
+                    file_size: city.file.size || 0,
+                    file_type: 'kml',
+                    uploaded_at: Date.now(),
+                    placemarks_count: 0,
+                    file_exists: true
+                };
+                await saveRecentUpload(uploadInfo);
+            }
         }
         
-        if (currentFile) {
-            currentFile.textContent = `${city.file.name} (${city.name})`;
-        }
         setStatus(`✅ ${city.name} carregada`);
         
     } catch (error) {
@@ -696,147 +705,9 @@ async function loadCityOnMap(id) {
     }
 }
 
-// Helper for the original loading method (fallback)
-async function loadOriginalKMZ(city) {
-    const url = city.file.url;
-    const isKmz = url.toLowerCase().endsWith('.kmz');
-    const response = await timeoutFetch(url);
-    if (!response.ok) throw new Error('Falha ao baixar arquivo original');
-
-    if (isKmz) {
-        const blob = await response.blob();
-        const file = new File([blob], city.file.name, { type: 'application/vnd.google-earth.kmz' });
-        await loadKMZ(file);
-    } else {
-        const text = await response.text();
-        await parseKML(text, city.name);
-    }
-}
-
-// New function to render the map from pre-processed JSON
-async function renderFromProcessed(data, cityHint = "") {
-  const groupBounds = {};
-  const boundsLines = L.latLngBounds();
-  const MIN_START_ZOOM = 12;
-const MAX_START_ZOOM = 18;
-
-  showLoading(true, `Renderizando mapa otimizado de ${cityHint || "sua cidade"}…`);
-
-  try {
-    if (!data || !data.lines || !data.markers) {
-        throw new Error("Formato de dados processados inválido");
-    }
-
-    if (published) { try { map.removeLayer(published); } catch {} }
-    resetGroups();
-
-    published = L.layerGroup().addTo(map);
-    localIndex.points = [];
-    localIndex.groups = [];
-    stats = { markers: 0, lines: 0, polygons: 0 };
-
-    if (hasCluster) {
-      lod.keysContainer = L.markerClusterGroup({
-        chunkedLoading: true,
-        disableClusteringAtZoom: Z_MARKERS_ON + 2,
-        spiderfyOnMaxZoom: false,
-        showCoverageOnHover: false
-      });
-    } else {
-      lod.keysRawGroup = L.layerGroup();
-      lod.keysContainer = lod.keysRawGroup;
-    }
-    lod.keysContainer.addTo(map);
-    lod.keysVisible = true;
-    lod.blockMarkersUntilZoom = false;
-
-    // Render Lines
-    for (const line of data.lines) {
-      const grp = line.group;
-      if (!groups[grp]) {
-        groups[grp] = L.layerGroup();
-        published.addLayer(groups[grp]);
-        order.push(grp);
-      }
-      const color = nextColor(grp);
-      const poly = makeLODPolylineFromData(line.lods, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
-      
-      attachLineTooltip(poly, grp);
-      groups[grp].addLayer(poly);
-
-      const gb = (groupBounds[grp] ??= L.latLngBounds());
-      if(line.lods.fine && line.lods.fine.length > 0) {
-        line.lods.fine.forEach(([lt, lg]) => { gb.extend([lt, lg]); boundsLines.extend([lt, lg]); });
-      }
-      stats.lines++;
-    }
-
-    // Render Markers
-    for (const markerData of data.markers) {
-      const [lat, lng] = markerData.coords;
-      const gName = markerData.group;
-      const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
-
-      if (!postGroups[gName]) { 
-        postGroups[gName] = [];
-        postOrder.push(gName); 
-      }
-
-      const label = `<b>${markerData.name}</b>`;
-      const extra = `<br><small>Alim:</small> <b>${markerData.extra.Alim || "—"}</b>`
-                  + (markerData.extra.Potência ? `<br><small>Potência:</small> <b>${markerData.extra.Potência}</b>` : ``);
-
-      const marker = makePostMarker(lat, lng, color, label, extra);
-      marker.setGroupName(markerData.extra.Alim);
-
-      allPostMarkers.push({ m: marker, lat, lng, text: markerData.name });
-      postGroups[gName].push(marker);
-      stats.markers++;
-    }
-    
-    if (allPostMarkers.length > 0) {
-        lod.keysContainer.addLayers(allPostMarkers.map(p => p.m));
-    }
-
-    Object.entries(groupBounds).forEach(([name, bbox]) => {
-      localIndex.groups.push({ name, lat: bbox.getCenter().lat, lon: bbox.getCenter().lng, bbox });
-    });
-
-    renderLayersPanelLines();
-    renderLayersPanelPosts();
-    refreshCounters();
-
-    if (boundsLines.isValid()) {
-      map.fitBounds(boundsLines, { padding: [48, 48] });
-      if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
-      if (map.getZoom() > MAX_START_ZOOM) map.setZoom(MAX_START_ZOOM);
-    }
-
-    updateLOD();
-    updatePostLabels();
-
-    // Apply restored layer visibility state if it exists
-    if (window.restoredState) {
-        applyLayerVisibilityState(window.restoredState);
-        window.restoredState = null; // Consume it
-    }
-
-    setStatus(`✅ Mapa otimizado carregado: ${stats.markers} postos, ${stats.lines} linhas`);
-
-  } catch (e) {
-    console.error(e);
-    setStatus("❌ Erro ao renderizar mapa otimizado: " + e.message);
-    throw e;
-  } finally {
-    showLoading(false);
-  }
-}
-
-
 /* ========================
    CÓDIGO ORIGINAL (CONTINUAÇÃO)
    ======================== */
-
 
 const LS_KEYCODES = 'gv_keycodes_v1';
 const LS_PREFIXSEQ = 'gv_prefix_seq_v1';
@@ -1107,20 +978,6 @@ function buildSimpLevels(coords){
   const coarse = simplifyPathMeters(mid, LOD_TOLS.coarse);
   return { coarse, mid, fine };
 }
-function makeLODPolylineFromData(levels, style, grpLabel) {
-  const poly = L.polyline(levels.coarse, {
-    ...style,
-    smoothFactor: 3,
-    noClip: true,
-    updateWhenZooming: false,
-    renderer: fastRenderer
-  });
-  poly.__label = grpLabel || '';
-  poly.__levels = levels; // The pre-calculated LODs
-  poly.__lodApplied = 'coarse';
-  return poly;
-}
-
 function makeLODPolyline(coords, style, grpLabel){
   const levels = buildSimpLevels(coords);
   const poly = L.polyline(levels.coarse, {
@@ -1538,10 +1395,10 @@ function resetGroups() {
     try { map.removeLayer(groups[name]); } catch {}
     delete groups[name];
   }
-  
-  // Reset postGroups object. Markers are cleared via lod.keysContainer.
-  Object.keys(postGroups).forEach(k => delete postGroups[k]);
-
+  for (const gname of Object.keys(postGroups)) {
+    try { map.removeLayer(postGroups[gname]); } catch {}
+    delete postGroups[gname];
+  }
   if (lod.keysContainer) { try { map.removeLayer(lod.keysContainer); } catch {} }
   if (lod.keysRawGroup)  { try { map.removeLayer(lod.keysRawGroup);  } catch {} }
   lod.keysContainer = null;
@@ -1613,7 +1470,12 @@ function renderLayersPanelPosts() {
     const row = document.createElement("label");
     row.className = "layer-item";
     
-    // All groups are visible by default as all markers are added to the main container initially.
+    // POR PADRÃO, TODOS OS GRUPOS DEVEM ESTAR SELECIONADOS
+    // Garante que a camada está no mapa
+    if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
+      postGroups[gname].addTo(map);
+    }
+    
     row.innerHTML = `
       <input type="checkbox" checked data-pg="${gname}">
       <span class="layer-color" style="background:${color}"></span>
@@ -1622,14 +1484,21 @@ function renderLayersPanelPosts() {
     
     const cb = row.querySelector("input");
     cb.onchange = () => {
-      if (!lod.keysContainer || !postGroups[gname]) return;
-
       if (cb.checked) {
-        // Use addLayers for efficiency, it takes an array of markers
-        lod.keysContainer.addLayers(postGroups[gname]);
+        // Adiciona ao mapa se não estiver já
+        if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
+          postGroups[gname].addTo(map);
+        }
+        // CORREÇÃO: Garante que o container de markers também seja mostrado
+        if (lod.keysContainer && !map.hasLayer(lod.keysContainer)) {
+          map.addLayer(lod.keysContainer);
+          lod.keysVisible = true;
+        }
       } else {
-        // Use removeLayers for efficiency, it takes an array of markers
-        lod.keysContainer.removeLayers(postGroups[gname]);
+        // Remove do mapa se estiver presente
+        if (postGroups[gname] && map.hasLayer(postGroups[gname])) {
+          map.removeLayer(postGroups[gname]);
+        }
       }
     };
     
@@ -2060,8 +1929,10 @@ async function parseKML(text, cityHint = "") {
             const gName = postoGroupByName(rawName, pm);
             const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
             if (!postGroups[gName]) { 
-              postGroups[gName] = []; // Now an array
+              postGroups[gName] = L.layerGroup(); 
               postOrder.push(gName); 
+              // ADICIONA AO MAPA POR PADRÃO
+              postGroups[gName].addTo(map);
             }
 
             const pot   = getPotencia(pm);
@@ -2077,7 +1948,7 @@ async function parseKML(text, cityHint = "") {
             allPostMarkers.push({ m: marker, lat, lng, text: rawName });
 
             lod.keysContainer.addLayer(marker);
-            postGroups[gName].push(marker); // Push to array
+            postGroups[gName].addLayer(marker);
 
             stats.markers++;
           }

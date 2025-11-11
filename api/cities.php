@@ -9,10 +9,9 @@ header('Access-Control-Allow-Methods: GET,POST,OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
 // ======== Configuração ========
-define('DS', DIRECTORY_SEPARATOR);
 $ROOT = dirname(__DIR__);
-$UPLOAD_DIR = $ROOT . DS . 'uploads' . DS . 'cities';
-$DB_JSON = $ROOT . DS . 'uploads' . DS . 'cities' . DS . '_index.json';
+$UPLOAD_DIR = $ROOT . '/uploads/cities';
+$DB_JSON = $ROOT . '/uploads/cities/_index.json';
 
 // ======== Funções Básicas ========
 function atomic_write(string $path, string $content): bool {
@@ -63,7 +62,7 @@ function scan_kmz_files(): array {
     foreach ($folders as $folder) {
         if ($folder === '.' || $folder === '..') continue;
         
-        $city_path = $UPLOAD_DIR . DS . $folder;
+        $city_path = $UPLOAD_DIR . '/' . $folder;
         
         // Verifica se é uma pasta
         if (is_dir($city_path)) {
@@ -76,21 +75,7 @@ function scan_kmz_files(): array {
             
             if (!empty($kmz_files)) {
                 $kmz_file = reset($kmz_files); // Pega o primeiro arquivo
-                $file_path = $city_path . DS . $kmz_file;
-                
-                $file_info = [
-                    'name' => $kmz_file,
-                    'size' => filesize($file_path),
-                    'url' => '/uploads/cities/' . $folder . '/' . $kmz_file,
-                    'uploadedAt' => filemtime($file_path)
-                ];
-
-                // Check for processed.json
-                $processed_path = $city_path . DS . 'processed.json';
-                if (file_exists($processed_path)) {
-                    $file_info['processedUrl'] = '/uploads/cities/' . $folder . '/processed.json';
-                    $file_info['processedAt'] = filemtime($processed_path);
-                }
+                $file_path = $city_path . '/' . $kmz_file;
                 
                 $city_data = [
                     'id' => $folder,
@@ -98,7 +83,12 @@ function scan_kmz_files(): array {
                     'prefix' => strtoupper(substr($folder, 0, 3)),
                     'updatedAt' => filemtime($file_path),
                     'isDefault' => false,
-                    'file' => $file_info
+                    'file' => [
+                        'name' => $kmz_file,
+                        'size' => filesize($file_path),
+                        'url' => '/uploads/cities/' . $folder . '/' . $kmz_file,
+                        'uploadedAt' => filemtime($file_path)
+                    ]
                 ];
                 
                 $cities[] = $city_data;
@@ -152,31 +142,6 @@ function get_cities_combined(): array {
     }
     
     return $combined;
-}
-
-// ======== Helper para processamento em background ========
-function trigger_kmz_processing(string $kmz_path, string $output_json_path): void {
-    global $ROOT;
-    $worker_path = $ROOT . DS . 'workers' . DS . 'process_kmz.php';
-    
-    $php_executable = 'php';
-    if (defined('PHP_BINARY') && is_executable(PHP_BINARY)) {
-        $php_executable = PHP_BINARY;
-    }
-
-    $command = sprintf(
-        '%s %s %s %s',
-        escapeshellarg($php_executable),
-        escapeshellarg($worker_path),
-        escapeshellarg($kmz_path),
-        escapeshellarg($output_json_path)
-    );
-
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        pclose(popen("start /B " . $command, "r"));
-    } else {
-        shell_exec($command . " > /dev/null 2>&1 &");
-    }
 }
 
 // ======== CORS ========
@@ -259,43 +224,14 @@ try {
             'isDefault' => false
         ];
         
+        $index[] = $new_city;
+        save_index($index);
+        
         // Criar diretório da cidade
-        $city_dir = $UPLOAD_DIR . DS . $id;
+        $city_dir = $UPLOAD_DIR . '/' . $id;
         if (!is_dir($city_dir)) {
             @mkdir($city_dir, 0775, true);
         }
-
-        if (!empty($_FILES['file']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
-            $file = $_FILES['file'];
-            $filename = $file['name'];
-            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-            
-            if (!in_array($extension, ['kml', 'kmz'])) {
-                json_error('Apenas arquivos KML e KMZ são permitidos');
-            }
-
-            $safe_filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
-            $target_path = $city_dir . DS . $safe_filename;
-
-            if (!move_uploaded_file($file['tmp_name'], $target_path)) {
-                json_error('Erro ao salvar arquivo');
-            }
-
-            // Trigger background processing
-            $output_json = $city_dir . DS . 'processed.json';
-            trigger_kmz_processing($target_path, $output_json);
-
-            $new_city['file'] = [
-                'name' => $safe_filename,
-                'size' => filesize($target_path),
-                'url' => '/uploads/cities/' . $id . '/' . $safe_filename,
-                'uploadedAt' => time()
-            ];
-            $new_city['updatedAt'] = time();
-        }
-        
-        $index[] = $new_city;
-        save_index($index);
         
         json_response(['ok' => true, 'data' => $new_city], 201);
     }
@@ -331,30 +267,26 @@ try {
         
         if ($city_index === -1) json_error('Cidade não encontrada', 404);
         
-        $city_dir = $UPLOAD_DIR . DS . $id;
+        $city_dir = $UPLOAD_DIR . '/' . $id;
         if (!is_dir($city_dir)) {
             @mkdir($city_dir, 0775, true);
         }
         
         $safe_filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
-        $target_path = $city_dir . DS . $safe_filename;
+        $target_path = $city_dir . '/' . $safe_filename;
         
-        // Limpar arquivos anteriores KMZ/KML e processed.json
+        // Limpar arquivos anteriores KMZ/KML
         $files = scandir($city_dir);
         foreach ($files as $existing_file) {
             $ext = strtolower(pathinfo($existing_file, PATHINFO_EXTENSION));
-            if (in_array($ext, ['kml', 'kmz', 'json']) && $existing_file !== '.' && $existing_file !== '..') {
-                @unlink($city_dir . DS . $existing_file);
+            if (in_array($ext, ['kml', 'kmz']) && $existing_file !== '.' && $existing_file !== '..') {
+                @unlink($city_dir . '/' . $existing_file);
             }
         }
         
         if (!move_uploaded_file($file['tmp_name'], $target_path)) {
             json_error('Erro ao salvar arquivo');
         }
-
-        // Trigger background processing
-        $output_json = $city_dir . DS . 'processed.json';
-        trigger_kmz_processing($target_path, $output_json);
         
         // Atualizar cidade
         $file_info = [
