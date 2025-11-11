@@ -1979,7 +1979,7 @@ map.on('click', (e)=>{
 /* ----------------- Parse e publicação do KML (lotes) ----------------- */
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
-  const boundsLines = L.latLngBounds();
+  const totalBounds = L.latLngBounds();
   const MIN_START_ZOOM = 12;
   const seenLines = new Set();
 
@@ -2036,6 +2036,7 @@ async function parseKML(text, cityHint = "") {
           const coords = parseCoordBlock(point.textContent);
           if (coords.length) {
             const [lat, lng] = coords[0];
+            totalBounds.extend(coords[0]); // Adiciona ponto aos limites totais
             const autoCode = getOrCreateKeyCodeAuto(
               pm, lat, lng, fileInput?.files?.[0]?.name || currentFile?.textContent || ""
             );
@@ -2097,7 +2098,7 @@ async function parseKML(text, cityHint = "") {
               groups[grp].addLayer(poly);
 
               const gb = (groupBounds[grp] ??= L.latLngBounds());
-              coords.forEach(([lt, lg]) => { gb.extend([lt, lg]); boundsLines.extend([lt, lg]); });
+              coords.forEach(([lt, lg]) => { gb.extend([lt, lg]); totalBounds.extend([lt, lg]); });
 
               stats.lines++;
             }
@@ -2126,6 +2127,8 @@ async function parseKML(text, cityHint = "") {
               });
               groups[grp].addLayer(p);
               stats.polygons++;
+              // Adiciona polígono aos limites totais
+              coords.forEach(([lt, lg]) => totalBounds.extend([lt, lg]));
             }
           });
           continue;
@@ -2142,8 +2145,8 @@ async function parseKML(text, cityHint = "") {
     renderLayersPanelPosts();
     refreshCounters();
 
-    if (boundsLines.isValid()) {
-      map.fitBounds(boundsLines, { padding: [48, 48] });
+    if (totalBounds.isValid()) {
+      map.fitBounds(totalBounds, { padding: [48, 48] });
       if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
     }
 
@@ -2178,21 +2181,34 @@ async function loadKMZ(file) {
   }
 }
 
+async function uploadAndLoadFile(file) {
+  if (!file) return;
+
+  currentFile && (currentFile.textContent = file.name);
+
+  try {
+    // Primeiro, faz o upload e aguarda a confirmação do servidor
+    await handleFileUploadWithCache(file);
+
+    // Após o upload, carrega o arquivo imediatamente no mapa
+    const isKmz = file.name.toLowerCase().endsWith('.kmz');
+    if (isKmz) {
+      await loadKMZ(file);
+    } else {
+      const text = await file.text();
+      const cityHint = prettyCityFromFilename(file.name);
+      await parseKML(text, cityHint);
+    }
+  } catch (error) {
+    console.error('Erro no upload e carregamento do arquivo:', error);
+    setStatus('❌ Falha ao carregar o arquivo.');
+  }
+}
+
 /* ----------------- Upload / Drag&Drop ----------------- */
 fileInput?.addEventListener("change", async (e) => {
   const f = e.target.files?.[0];
-  if (f) {
-    const cityGuess = prettyCityFromFilename(f.name);
-    const last = f.lastModified ? new Date(f.lastModified) : new Date();
-  }
-  if (!f) return;
-  currentFile && (currentFile.textContent = f.name);
-  
-  try {
-    await handleFileUploadWithCache(f);
-  } catch (error) {
-    console.error('Erro no upload com cache:', error);
-  }
+  await uploadAndLoadFile(f);
 });
 
 if (dropZone && fileInput) {
@@ -2211,17 +2227,13 @@ if (dropZone && fileInput) {
   );
   dropZone.addEventListener("drop", async (e) => {
     const f = e.dataTransfer?.files?.[0];
-    if (!f) return;
-    
-    try {
-      await handleFileUploadWithCache(f);
-      
+    if (f) {
+      // Atualiza o input de arquivo para consistência
       const dt = new DataTransfer();
       dt.items.add(f);
       fileInput.files = dt.files;
-      fileInput.dispatchEvent(new Event("change"));
-    } catch (error) {
-      console.error('Erro no drop com cache:', error);
+      // Chama a função principal de upload e carregamento
+      await uploadAndLoadFile(f);
     }
   });
 }
