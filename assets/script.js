@@ -33,6 +33,7 @@ const MAX_STATUS_LEN = 40;
 const UPLOAD_CACHE_KEY = 'gv_last_uploads_v3';
 const MAP_STATE_KEY = 'gv_map_state_v3';
 const LAST_SESSION_KEY = 'gv_last_session_v2';
+const LAST_PROCESSED_MAP_DATA_KEY = 'gv_last_processed_map_data_v1';
 const API_CITIES = 'api/cities.php';
 
 window.currentCityId = null; // Declare global variable
@@ -202,6 +203,64 @@ function saveSessionState() {
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
 }
 
+function saveProcessedMapData() {
+    console.log('DEBUG: saveProcessedMapData called.');
+    if (!order.length && !postOrder.length) {
+        console.log('DEBUG: No lines or markers to save. Returning early.');
+        return;
+    }
+
+    const processedData = {
+        lines: [],
+        markers: [],
+        order: order,
+        postOrder: postOrder,
+        timestamp: Date.now()
+    };
+
+    // Collect line data
+    order.forEach(groupName => {
+        if (groups[groupName]) {
+            groups[groupName].eachLayer(layer => {
+                if (layer instanceof L.Polyline && layer.__levels) {
+                    processedData.lines.push({
+                        group: groupName,
+                        color: layer.options.color,
+                        lods: layer.__levels
+                    });
+                }
+            });
+        }
+    });
+
+    // Collect marker data
+    allPostMarkers.forEach(pm => {
+        processedData.markers.push({
+            coords: [pm.lat, pm.lng],
+            group: pm.m.__groupName, // Use the group name set on the marker
+            name: pm.text,
+            extra: {
+                Alim: pm.m.__groupName, // Assuming __groupName stores Alim
+                Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined // Simplified, adjust as needed
+            }
+        });
+    });
+
+    console.log(`DEBUG: Collected ${processedData.lines.length} lines and ${processedData.markers.length} markers.`);
+
+    try {
+        const dataToSave = JSON.stringify(processedData);
+        console.log(`DEBUG: Size of data to save: ${dataToSave.length} characters.`);
+        localStorage.setItem(LAST_PROCESSED_MAP_DATA_KEY, dataToSave);
+        console.log('✅ Dados do mapa processados salvos no cache.');
+    } catch (e) {
+        console.error('❌ Erro ao salvar dados do mapa processados:', e);
+        if (e.name === 'QuotaExceededError') {
+            console.error('LocalStorage quota exceeded. Data might be too large.');
+        }
+    }
+}
+
 // Restaurar última sessão
 // Holds the state from the last session to be applied after data is loaded
 window.restoredState = null;
@@ -234,6 +293,53 @@ function restoreLastSession() {
         console.error('❌ Erro ao restaurar sessão:', error);
         window.restoredState = null;
         return null;
+    }
+}
+
+async function loadProcessedMapData() {
+    try {
+        const saved = localStorage.getItem(LAST_PROCESSED_MAP_DATA_KEY);
+        if (!saved) return false;
+
+        const data = JSON.parse(saved);
+        // Check if data is too old (e.g., 7 days)
+        if (Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000) {
+            localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+            console.log('Cache de dados do mapa processado expirado.');
+            return false;
+        }
+
+        console.log('✅ Carregando dados do mapa processados do cache...');
+        setStatus('🔄 Carregando mapa do cache...');
+        showLoading(true, 'Carregando mapa do cache...');
+
+        // Clear existing map layers before rendering from cache
+        if (published) { try { map.removeLayer(published); } catch {} }
+        resetGroups();
+
+        // Re-populate global arrays
+        order.length = 0;
+        postOrder.length = 0;
+        data.order.forEach(item => order.push(item));
+        data.postOrder.forEach(item => postOrder.push(item));
+
+        // Render the map from the cached data
+        await renderFromProcessed(data);
+
+        // Update UI panels
+        renderLayersPanelLines();
+        renderLayersPanelPosts();
+        refreshCounters();
+
+        setStatus('✅ Mapa carregado do cache!');
+        showLoading(false);
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao carregar dados do mapa processados do cache:', error);
+        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear corrupted cache
+        showLoading(false);
+        return false;
     }
 }
 
@@ -549,9 +655,10 @@ function renderRecentUploadsPanel() {
 
 // Limpar cache
 function clearUploadsCache() {
-    if (confirm('Limpar cache de uploads?')) {
+    if (confirm('Limpar cache de uploads e dados do mapa?')) {
         localStorage.removeItem(UPLOAD_CACHE_KEY);
         localStorage.removeItem(LAST_SESSION_KEY);
+        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear the new cache key
         const panel = document.getElementById('recentUploadsPanel');
         if (panel) panel.remove();
         setStatus('🗑️ Cache limpo');
@@ -613,6 +720,12 @@ async function initializeCacheSystem() {
     setupAutoSave();
     
     setTimeout(async () => {
+        const loadedFromProcessedCache = await loadProcessedMapData();
+        if (loadedFromProcessedCache) {
+            console.log('✅ Mapa carregado do cache de dados processados.');
+            return; // Exit if successfully loaded from processed cache
+        }
+
         const loaded = await loadLastUploadAuto();
         if (!loaded) console.log('ℹ️ Nenhuma sessão anterior');
     }, 1000);
@@ -756,7 +869,7 @@ async function renderFromProcessed(data, cityHint = "") {
         published.addLayer(groups[grp]);
         order.push(grp);
       }
-      const color = nextColor(grp);
+      const color = line.color; // Use the saved color
       const poly = makeLODPolylineFromData(line.lods, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
       
       attachLineTooltip(poly, grp);
@@ -776,7 +889,8 @@ async function renderFromProcessed(data, cityHint = "") {
       const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
 
       if (!postGroups[gName]) { 
-        postGroups[gName] = [];
+        postGroups[gName] = L.layerGroup(); // Correct: Initialize as L.layerGroup()
+        published.addLayer(postGroups[gName]); // Add the layer group to the map
         postOrder.push(gName); 
       }
 
@@ -788,7 +902,7 @@ async function renderFromProcessed(data, cityHint = "") {
       marker.setGroupName(markerData.extra.Alim);
 
       allPostMarkers.push({ m: marker, lat, lng, text: markerData.name });
-      postGroups[gName].push(marker);
+      postGroups[gName].addLayer(marker); // Correct: Add marker to the layer group
       stats.markers++;
     }
     
@@ -1113,6 +1227,21 @@ function makeLODPolyline(coords, style, grpLabel){
   });
   poly.__label = grpLabel || '';
   poly.__levels = levels;
+  poly.__lodApplied = 'coarse';
+  return poly;
+}
+
+// New function to create a polyline from pre-calculated LOD data
+function makeLODPolylineFromData(lods, style, grpLabel){
+  const poly = L.polyline(lods.coarse, { // Use lods.coarse directly
+    ...style,
+    smoothFactor: 3,
+    noClip: true,
+    updateWhenZooming: false,
+    renderer: fastRenderer
+  });
+  poly.__label = grpLabel || '';
+  poly.__levels = lods; // Use lods directly
   poly.__lodApplied = 'coarse';
   return poly;
 }
@@ -2156,6 +2285,7 @@ async function parseKML(text, cityHint = "") {
     updateLOD();
     updatePostLabels();
     setStatus(`✅ Publicado: ${stats.markers} postos, ${stats.lines} linhas, ${stats.polygons} polígonos`);
+    saveProcessedMapData();
 
   } catch (e) {
     console.error(e);
