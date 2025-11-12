@@ -33,7 +33,75 @@ const MAX_STATUS_LEN = 40;
 const UPLOAD_CACHE_KEY = 'gv_last_uploads_v3';
 const MAP_STATE_KEY = 'gv_map_state_v3';
 const LAST_SESSION_KEY = 'gv_last_session_v2';
-const LAST_PROCESSED_MAP_DATA_KEY = 'gv_last_processed_map_data_v1';
+const LAST_PROCESSED_MAP_DATA_KEY = 'gv_last_processed_map_metadata_v1'; // This key will now be for metadata
+const LAST_PROCESSED_MAP_LINES_KEY = 'gv_processed_map_lines_v1';
+const LAST_PROCESSED_MAP_MARKERS_KEY = 'gv_processed_map_markers_v1';
+const DB_NAME = 'GeoViewerCacheDB';
+const STORE_NAME_LINES = 'processedMapLines'; // New store for lines
+const STORE_NAME_MARKERS = 'processedMapMarkers'; // New store for markers
+
+// IndexedDB Helper Functions
+async function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME_LINES)) {
+                db.createObjectStore(STORE_NAME_LINES);
+            }
+            if (!db.objectStoreNames.contains(STORE_NAME_MARKERS)) {
+                db.createObjectStore(STORE_NAME_MARKERS);
+            }
+        };
+
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
+
+        request.onerror = (event) => {
+            console.error('IndexedDB error:', event.target.errorCode);
+            reject('IndexedDB error');
+        };
+    });
+}
+
+async function putIntoDB(storeName, key, value) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.put(value, key);
+
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => reject(event.target.errorCode);
+    });
+}
+
+async function getFromDB(storeName, key) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.get(key);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = (event) => reject(event.target.errorCode);
+    });
+}
+
+async function deleteFromDB(storeName, key) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.delete(key);
+
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => reject(event.target.errorCode);
+    });
+}
+
 const API_CITIES = 'api/cities.php';
 
 window.currentCityId = null; // Declare global variable
@@ -203,27 +271,26 @@ function saveSessionState() {
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
 }
 
-function saveProcessedMapData() {
+async function saveProcessedMapData() {
     console.log('DEBUG: saveProcessedMapData called.');
     if (!order.length && !postOrder.length) {
         console.log('DEBUG: No lines or markers to save. Returning early.');
         return;
     }
 
-    const processedData = {
-        lines: [],
-        markers: [],
-        order: order,
-        postOrder: postOrder,
-        timestamp: Date.now()
-    };
+    // Ensure unique entries in order and postOrder before saving
+    const uniqueOrder = [...new Set(order)];
+    const uniquePostOrder = [...new Set(postOrder)];
+
+    const linesToSave = [];
+    const markersToSave = [];
 
     // Collect line data
     order.forEach(groupName => {
         if (groups[groupName]) {
             groups[groupName].eachLayer(layer => {
                 if (layer instanceof L.Polyline && layer.__levels) {
-                    processedData.lines.push({
+                    linesToSave.push({
                         group: groupName,
                         color: layer.options.color,
                         lods: layer.__levels
@@ -235,29 +302,40 @@ function saveProcessedMapData() {
 
     // Collect marker data
     allPostMarkers.forEach(pm => {
-        processedData.markers.push({
+        markersToSave.push({
             coords: [pm.lat, pm.lng],
-            group: pm.m.__groupName, // Use the group name set on the marker
+            group: pm.m.__groupName,
             name: pm.text,
             extra: {
-                Alim: pm.m.__groupName, // Assuming __groupName stores Alim
-                Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined // Simplified, adjust as needed
+                Alim: pm.m.__groupName,
+                Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined
             }
         });
     });
 
-    console.log(`DEBUG: Collected ${processedData.lines.length} lines and ${processedData.markers.length} markers.`);
+    const metadataToSave = {
+        order: uniqueOrder,
+        postOrder: uniquePostOrder,
+        timestamp: Date.now()
+    };
+
+    console.log(`DEBUG: Collected ${linesToSave.length} lines and ${markersToSave.length} markers.`);
+    console.log('DEBUG: linesToSave (first 5):', linesToSave.slice(0, 5));
+    console.log('DEBUG: markersToSave (first 5):', markersToSave.slice(0, 5));
+    console.log('DEBUG: metadataToSave:', metadataToSave);
 
     try {
-        const dataToSave = JSON.stringify(processedData);
-        console.log(`DEBUG: Size of data to save: ${dataToSave.length} characters.`);
-        localStorage.setItem(LAST_PROCESSED_MAP_DATA_KEY, dataToSave);
-        console.log('✅ Dados do mapa processados salvos no cache.');
+        // Save lines and markers to IndexedDB
+        await putIntoDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY, linesToSave);
+        await putIntoDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY, markersToSave);
+
+        // Save metadata to localStorage
+        localStorage.setItem(LAST_PROCESSED_MAP_DATA_KEY, JSON.stringify(metadataToSave));
+
+        console.log('✅ Dados do mapa processados salvos no cache (IndexedDB e LocalStorage).');
     } catch (e) {
         console.error('❌ Erro ao salvar dados do mapa processados:', e);
-        if (e.name === 'QuotaExceededError') {
-            console.error('LocalStorage quota exceeded. Data might be too large.');
-        }
+        // Log specific IndexedDB errors if possible
     }
 }
 
@@ -297,19 +375,45 @@ function restoreLastSession() {
 }
 
 async function loadProcessedMapData() {
+    console.log('DEBUG: loadProcessedMapData called.');
     try {
-        const saved = localStorage.getItem(LAST_PROCESSED_MAP_DATA_KEY);
-        if (!saved) return false;
+        // Load metadata from localStorage
+        const metadataSaved = localStorage.getItem(LAST_PROCESSED_MAP_DATA_KEY);
+        if (!metadataSaved) {
+            console.log('DEBUG: No metadata found in localStorage.');
+            return false;
+        }
+        const metadata = JSON.parse(metadataSaved);
+        console.log('DEBUG: Loaded metadata:', metadata);
 
-        const data = JSON.parse(saved);
-        // Check if data is too old (e.g., 7 days)
-        if (Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000) {
+        // Check if metadata is too old (e.g., 7 days)
+        if (Date.now() - metadata.timestamp > 7 * 24 * 60 * 60 * 1000) {
+            console.log('DEBUG: Cache expired. Clearing all processed map data.');
             localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+            // Also clear corresponding IndexedDB data
+            await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+            await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
             console.log('Cache de dados do mapa processado expirado.');
             return false;
         }
 
-        console.log('✅ Carregando dados do mapa processados do cache...');
+        // Load lines and markers from IndexedDB
+        const lines = await getFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+        const markers = await getFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+        console.log('DEBUG: Loaded lines (first 5):', lines?.slice(0, 5));
+        console.log('DEBUG: Loaded markers (first 5):', markers?.slice(0, 5));
+
+
+        if (!lines || !markers || lines.length === 0 || markers.length === 0) {
+            console.log('DEBUG: Dados de linhas ou marcadores não encontrados ou vazios no IndexedDB. Clearing cache.');
+            // Clear potentially corrupted cache
+            localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+            await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+            await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+            return false;
+        }
+
+        console.log('✅ Carregando dados do mapa processados do cache (IndexedDB e LocalStorage)...');
         setStatus('🔄 Carregando mapa do cache...');
         showLoading(true, 'Carregando mapa do cache...');
 
@@ -320,11 +424,20 @@ async function loadProcessedMapData() {
         // Re-populate global arrays
         order.length = 0;
         postOrder.length = 0;
-        data.order.forEach(item => order.push(item));
-        data.postOrder.forEach(item => postOrder.push(item));
+        metadata.order.forEach(item => order.push(item));
+        metadata.postOrder.forEach(item => postOrder.push(item));
+
+        // Reconstruct processedData for renderFromProcessed
+        const processedData = {
+            lines: lines,
+            markers: markers,
+            order: metadata.order,
+            postOrder: metadata.postOrder,
+            timestamp: metadata.timestamp
+        };
 
         // Render the map from the cached data
-        await renderFromProcessed(data);
+        await renderFromProcessed(processedData);
 
         // Update UI panels
         renderLayersPanelLines();
@@ -337,7 +450,10 @@ async function loadProcessedMapData() {
 
     } catch (error) {
         console.error('❌ Erro ao carregar dados do mapa processados do cache:', error);
-        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear corrupted cache
+        // Clear all parts of the cache if an error occurs
+        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+        await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+        await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
         showLoading(false);
         return false;
     }
@@ -654,11 +770,13 @@ function renderRecentUploadsPanel() {
 }
 
 // Limpar cache
-function clearUploadsCache() {
+async function clearUploadsCache() { // Make it async
     if (confirm('Limpar cache de uploads e dados do mapa?')) {
         localStorage.removeItem(UPLOAD_CACHE_KEY);
         localStorage.removeItem(LAST_SESSION_KEY);
-        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear the new cache key
+        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear metadata from localStorage
+        await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY); // Clear lines from IndexedDB
+        await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY); // Clear markers from IndexedDB
         const panel = document.getElementById('recentUploadsPanel');
         if (panel) panel.remove();
         setStatus('🗑️ Cache limpo');
@@ -839,7 +957,7 @@ async function renderFromProcessed(data, cityHint = "") {
     }
 
     if (published) { try { map.removeLayer(published); } catch {} }
-    resetGroups();
+    // resetGroups(); // Removed redundant call, as loadProcessedMapData already calls it
 
     published = L.layerGroup().addTo(map);
     localIndex.points = [];
@@ -867,7 +985,7 @@ async function renderFromProcessed(data, cityHint = "") {
       if (!groups[grp]) {
         groups[grp] = L.layerGroup();
         published.addLayer(groups[grp]);
-        order.push(grp);
+        // order.push(grp); // Removed: order is already populated by loadProcessedMapData
       }
       const color = line.color; // Use the saved color
       const poly = makeLODPolylineFromData(line.lods, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
@@ -891,7 +1009,7 @@ async function renderFromProcessed(data, cityHint = "") {
       if (!postGroups[gName]) { 
         postGroups[gName] = L.layerGroup(); // Correct: Initialize as L.layerGroup()
         published.addLayer(postGroups[gName]); // Add the layer group to the map
-        postOrder.push(gName); 
+        // postOrder.push(gName); // Removed: postOrder is already populated by loadProcessedMapData
       }
 
       const label = `<b>${markerData.name}</b>`;
@@ -2186,7 +2304,7 @@ async function parseKML(text, cityHint = "") {
                       + (pot ? `<br><small>Potência:</small> <b>${pot}</b>` : ``)
                       + `<br><small>Cód.:</small> <b>${autoCode}</b>`;
           const marker = makePostMarker(lat, lng, color, label, extra);
-          marker.setGroupName(alimDisplay);
+          marker.setGroupName(gName); // FIX: Use the correct post group name
           allPostMarkers.push({ m: marker, lat, lng, text: rawName });
           lod.keysContainer.addLayer(marker);
           postGroups[gName].addLayer(marker);
