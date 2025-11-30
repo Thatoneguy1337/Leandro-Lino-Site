@@ -13,6 +13,10 @@
    - UX: Carregamento inicial mostra só as linhas; postos aparecem após o primeiro zoom do usuário
    - CACHE: Prefetch dos KML/KMZ com Cache Storage (cache-first com fallback de rede)
    - GEO: Localização por leitura única com animação (sem watch)
+
+  🔧 Atualizações (nov/2025)
+   - FIX: Consertados Favicon e outros arquivos de imagem
+   - CACHE: Otimização de cache e permanência de dados extraídos dos arquivos KMZ cache storage (cache-first com fallback de rede)
    ========================================================= */
 
 /* ---------- Parâmetros de performance ---------- */
@@ -43,7 +47,7 @@ const STORE_NAME_MARKERS = 'processedMapMarkers'; // New store for markers
 // IndexedDB Helper Functions
 async function openDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 1);
+        const request = indexedDB.open(DB_NAME, 2);
 
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
@@ -404,7 +408,7 @@ async function loadProcessedMapData() {
         console.log('DEBUG: Loaded markers (first 5):', markers?.slice(0, 5));
 
 
-        if (!lines || !markers || lines.length === 0 || markers.length === 0) {
+        if (!lines || !markers || (lines.length === 0 && markers.length === 0)) {
             console.log('DEBUG: Dados de linhas ou marcadores não encontrados ou vazios no IndexedDB. Clearing cache.');
             // Clear potentially corrupted cache
             localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
@@ -444,16 +448,26 @@ async function loadProcessedMapData() {
         renderLayersPanelPosts();
         refreshCounters();
 
+        // Restaura a visibilidade das camadas da última sessão
+        const savedStateJSON = localStorage.getItem(LAST_SESSION_KEY);
+        if (savedStateJSON) {
+            const restoredState = JSON.parse(savedStateJSON);
+            // Verifica se a sessão não é muito antiga
+            if (restoredState && (Date.now() - restoredState.timestamp < 24 * 60 * 60 * 1000)) {
+                applyLayerVisibility(restoredState);
+            }
+        }
+
         setStatus('✅ Mapa carregado do cache!');
         showLoading(false);
         return true;
 
     } catch (error) {
         console.error('❌ Erro ao carregar dados do mapa processados do cache:', error);
-        // Clear all parts of the cache if an error occurs
-        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
-        await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
-        await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+        // Temporarily disabled cache clearing to diagnose recurring issue.
+        // localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+        // await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+        // await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
         showLoading(false);
         return false;
     }
@@ -484,6 +498,60 @@ function getVisiblePosts() {
     }
     return visible;
 }
+
+// Aplica o estado de visibilidade das camadas a partir de uma sessão salva
+function applyLayerVisibility(state) {
+    if (!state || (!state.visibleLayers && !state.visiblePosts)) {
+        console.log('ℹ️ Nenhuma configuração de visibilidade de camada para aplicar.');
+        return;
+    }
+
+    const { visibleLayers, visiblePosts } = state;
+    console.log('🔄 Aplicando visibilidade de camadas da sessão anterior...');
+
+    // Lida com camadas de Linhas (Alimentadores)
+    if (Array.isArray(visibleLayers) && window.order && layersListLines) {
+        window.order.forEach(name => {
+            const shouldBeVisible = visibleLayers.includes(name);
+            const layer = window.groups[name];
+            const checkbox = layersListLines.querySelector(`input[data-af="${name}"]`);
+
+            if (layer) {
+                if (shouldBeVisible && !map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                } else if (!shouldBeVisible && map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            }
+            if (checkbox) {
+                checkbox.checked = shouldBeVisible;
+            }
+        });
+    }
+
+    // Lida com Grupos de Postos
+    if (Array.isArray(visiblePosts) && window.postOrder && layersListPosts) {
+        window.postOrder.forEach(name => {
+            const shouldBeVisible = visiblePosts.includes(name);
+            const layer = window.postGroups[name];
+            const checkbox = layersListPosts.querySelector(`input[data-pg="${name}"]`);
+
+            if (layer) {
+                if (shouldBeVisible && !map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                } else if (!shouldBeVisible && map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            }
+            if (checkbox) {
+                checkbox.checked = shouldBeVisible;
+            }
+        });
+    }
+
+    console.log('✅ Visibilidade das camadas restaurada.');
+}
+
 
 /* ========================
    INTEGRAÇÃO COM API
