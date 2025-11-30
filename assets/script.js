@@ -1056,6 +1056,8 @@ async function renderFromProcessed(data, cityHint = "") {
         // order.push(grp); // Removed: order is already populated by loadProcessedMapData
       }
       const color = line.color; // Use the saved color
+      colors[grp] = color; // Repopulate the global colors object
+
       const poly = makeLODPolylineFromData(line.lods, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
       
       attachLineTooltip(poly, grp);
