@@ -1038,7 +1038,7 @@ async function loadOriginalKMZ(city) {
 async function renderFromProcessed(data, cityHint = "") {
   const groupBounds = {};
   const boundsLines = L.latLngBounds();
-  const MIN_START_ZOOM = 12;
+  const MIN_START_ZOOM = 18;
 
   showLoading(true, `Renderizando mapa otimizado de ${cityHint || "sua cidade"}…`);
 
@@ -1485,7 +1485,7 @@ const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
   center: [-21.7947, -48.1780],
-  zoom: 12,
+  zoom: 16, // Increased initial zoom from 14 to 16
   zoomControl: false,
   worldCopyJump: true,
   preferCanvas: true,
