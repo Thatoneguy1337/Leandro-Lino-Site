@@ -264,7 +264,7 @@ function getRecentUploads() {
     try {
         const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
         const now = Date.now();
-        const fresh = cache.filter(item => now - (item.cached_at || 0) < 7 * 24 * 60 * 60 * 1000);
+        const fresh = cache.filter(item => now - (item.cached_at || 0) < 365 * 24 * 60 * 60 * 1000);
         if (fresh.length !== cache.length) {
             localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(fresh));
         }
@@ -425,7 +425,7 @@ async function loadProcessedMapData() {
         console.log('DEBUG: Loaded metadata:', metadata);
 
         // Check if metadata is too old (e.g., 7 days)
-        if (Date.now() - metadata.timestamp > 7 * 24 * 60 * 60 * 1000) {
+        if (Date.now() - metadata.timestamp > 365 * 24 * 60 * 60 * 1000) {
             console.log('DEBUG: Cache expired. Clearing all processed map data.');
             localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
             await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
@@ -1334,26 +1334,132 @@ $("#closeShortcuts")?.addEventListener("click", () => dlg?.close());
 $("#okShortcuts")?.addEventListener("click", () => dlg?.close());
 
 const sidebar = $(".sidebar");
-$("#openSidebar")?.addEventListener("click", () => {
+const openSidebarBtn = $("#openSidebar");
+const closeSidebarBtn = $("#closeSidebar");
+
+openSidebarBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
   if (!sidebar) return;
   sidebar.classList.add("open");
   document.body.classList.add("sidebar-open");
 });
-$("#closeSidebar")?.addEventListener("click", () => {
+
+const closeMenu = () => {
   if (!sidebar) return;
   sidebar.classList.remove("open");
   document.body.classList.remove("sidebar-open");
-});
+};
+
+closeSidebarBtn?.addEventListener("click", closeMenu);
+
 document.addEventListener("click", (e) => {
-  if (!sidebar) return;
-  if (sidebar.classList.contains("open") &&
-      !sidebar.contains(e.target) &&
-      !$("#openSidebar")?.contains(e.target) &&
-      window.innerWidth <= 768) {
-    sidebar.classList.remove("open");
-    document.body.classList.remove("sidebar-open");
+  if (!sidebar || !sidebar.classList.contains("open")) return;
+
+  // If the click is on the open button, do nothing (already handled).
+  if (openSidebarBtn?.contains(e.target)) {
+    return;
+  }
+
+  // If the click is outside the sidebar, close it.
+  if (!sidebar.contains(e.target)) {
+    closeMenu();
   }
 });
+
+// =================== Draggable Sidebar ===================
+const draggableSidebar = {
+  init() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let currentTranslate = 0;
+    
+    const getEventX = (e) => e.touches ? e.touches[0].clientX : e.clientX;
+
+    const onStart = (e) => {
+      if (window.innerWidth > 768) return;
+      
+      const x = getEventX(e);
+      const sidebarWidth = sidebar.offsetWidth;
+      const isOpen = sidebar.classList.contains('open');
+      
+      // Drags must start on the sidebar if open, or on the edge of the screen if closed.
+      if ((isOpen && x > sidebarWidth) || (!isOpen && x > 40)) {
+        return;
+      }
+      
+      isDragging = true;
+      startX = x;
+      sidebar.style.transition = 'none'; // No animation while dragging
+      document.body.style.userSelect = 'none';
+    };
+
+    const onMove = (e) => {
+      if (!isDragging) return;
+      if (e.touches) {
+        e.preventDefault(); // Prevent scroll on mobile
+      }
+      
+      const x = getEventX(e);
+      const diffX = x - startX;
+      const sidebarWidth = sidebar.offsetWidth;
+      const isOpen = sidebar.classList.contains('open');
+
+      let newTranslate;
+      if (isOpen) {
+        newTranslate = Math.max(-sidebarWidth, Math.min(0, diffX));
+      } else {
+        newTranslate = Math.max(-sidebarWidth, Math.min(0, -sidebarWidth + diffX));
+      }
+      
+      currentTranslate = newTranslate;
+      sidebar.style.transform = `translateX(${newTranslate}px)`;
+    };
+
+    const onEnd = () => {
+      if (!isDragging) return;
+      isDragging = false;
+
+      const sidebarWidth = sidebar.offsetWidth;
+      const threshold = sidebarWidth / 3;
+
+      sidebar.style.transition = ''; 
+      sidebar.style.transform = '';
+      document.body.style.userSelect = '';
+
+      const isOpen = sidebar.classList.contains('open');
+
+      if (isOpen) {
+        // Was open, check if we dragged enough to the left to close
+        if (currentTranslate < -threshold) {
+          sidebar.classList.remove('open');
+          document.body.classList.remove('sidebar-open');
+        }
+      } else {
+        // Was closed, check if we dragged enough to the right to open
+        if (currentTranslate > -sidebarWidth + threshold) {
+           sidebar.classList.add('open');
+           document.body.classList.add('sidebar-open');
+        }
+      }
+    };
+    
+    // Mouse events
+    document.addEventListener('mousedown', onStart);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('mouseleave', onEnd);
+    
+    // Touch events
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+  }
+};
+draggableSidebar.init();
 
 const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 

@@ -319,6 +319,49 @@ try {
         ]);
     }
 
+    // ---------- UPLOAD DE ARQUIVO KMZ STANDALONE ----------
+    if ($method === 'POST' && $action === 'upload_standalone_kmz') {
+        if (empty($_FILES['kmz_file']) || $_FILES['kmz_file']['error'] !== UPLOAD_ERR_OK) {
+            json_error('Nenhum arquivo enviado ou erro no upload.');
+        }
+
+        $file = $_FILES['kmz_file'];
+        $tmp_name = $file['tmp_name'];
+        $original_name = $file['name'];
+
+        // Valida o tipo de arquivo (MIME e extensão)
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $tmp_name);
+        finfo_close($finfo);
+
+        $allowed_mime = 'application/vnd.google-earth.kmz';
+        $file_extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+
+        if ($mime_type !== $allowed_mime || $file_extension !== 'kmz') {
+            json_error('Tipo de arquivo inválido. Apenas arquivos .kmz são permitidos.');
+        }
+
+        // Cria um nome de diretório único, ex: c_6525d54b77a4
+        $unique_dir_name = 'c_' . uniqid();
+        $target_dir = $UPLOAD_DIR . '/' . $unique_dir_name . '/';
+
+        if (!mkdir($target_dir, 0775, true)) {
+            json_error('Falha ao criar o diretório de destino para o arquivo.');
+        }
+
+        $destination = $target_dir . $original_name;
+
+        if (move_uploaded_file($tmp_name, $destination)) {
+            json_response([
+                'ok' => true,
+                'message' => 'Arquivo KMZ enviado com sucesso!',
+                'path' => 'uploads/cities/' . $unique_dir_name . '/' . $original_name
+            ]);
+        } else {
+            json_error('Falha ao mover o arquivo enviado para o destino final.');
+        }
+    }
+
     // ---------- HEALTH CHECK ----------
     if ($method === 'GET' && $action === 'health') {
         $physical_cities = scan_kmz_files();

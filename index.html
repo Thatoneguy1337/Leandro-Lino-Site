@@ -90,6 +90,33 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    .home-message-panel {
+      background: var(--panel-1);
+      padding: 12px 16px;
+      margin: 0 16px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .home-message-panel h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+    .home-message-panel p {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .home-message-panel .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -105,6 +132,13 @@
         </div>
       </div>
       <button class="ghost-btn" id="closeSidebar" title="Fechar painel" aria-label="Fechar painel">✕</button>
+    </div>
+
+    <!-- Mensagem da Home -->
+    <div id="homeMessagePanel" class="home-message-panel" style="display:none;">
+      <h3>Aviso</h3>
+      <p id="homeMessageContent"></p>
+      <button id="closeHomeMessage" class="close-btn" title="Fechar aviso">✕</button>
     </div>
 
     <nav class="sidebar-sections" aria-label="Seções">
@@ -813,6 +847,36 @@
 
     console.log('🔧 Sistema de cidades carregado - Funcionamento independente');
 
+  </script>
+
+  <!-- Script para carregar a mensagem da home -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const panel = document.getElementById('homeMessagePanel');
+      const content = document.getElementById('homeMessageContent');
+      const closeBtn = document.getElementById('closeHomeMessage');
+
+      if (!panel || !content || !closeBtn) return;
+
+      try {
+        const response = await fetch('api/message.php', { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const result = await response.json();
+        const messageText = result?.data?.text?.trim();
+
+        if (messageText) {
+          content.innerHTML = messageText.replace(/\n/g, '<br>');
+          panel.style.display = 'block';
+        }
+      } catch (e) {
+        console.error('Erro ao carregar mensagem da home:', e);
+      }
+
+      closeBtn.addEventListener('click', () => {
+        panel.style.display = 'none';
+      });
+    });
   </script>
 </body>
 </html>

@@ -280,10 +280,16 @@ body{
   /* sidebar vira off-canvas */
   .sidebar{
     position: fixed; left: 0; top: 0; bottom: 0;
-    width: min(86vw, 320px); transform: translateX(-100%);
-    transition: transform .25s ease; z-index: 30; box-shadow: var(--shadow-lg);
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    transition: transform .3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    z-index: 30;
+    box-shadow: var(--shadow-lg);
   }
-  .sidebar.open{ transform: translateX(0); }
+  .sidebar.open{
+    transform: translateX(0);
+    transition: transform .3s cubic-bezier(0.0, 0.0, 0.2, 1);
+  }
   #closeSidebar{ display:grid; }
 
   /* overlay para fechar */
@@ -380,6 +386,7 @@ body{
 
 /* Desktop: normaliza novamente */
 @media (min-width: 769px) {
+  #openSidebar { display: none; }
   #statusBar.statusbar { position: static !important; z-index: 1100; }
   .leaflet-bottom { bottom: 0 !important; }
   .map-fab-group { bottom: 16px !important; }
@@ -903,3 +910,53 @@ details.home-msg-details > summary::-webkit-details-marker{ display:none }
 @media (max-width: 768px) {
   .footer .credits { display: none; }
 }
+
+/* KMZ Upload Drop Zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background-color .2s;
+}
+.drop-zone.drag-over {
+  border-color: var(--primary);
+  background-color: color-mix(in oklab, var(--primary) 8%, transparent);
+}
+.drop-zone:hover {
+  border-color: color-mix(in oklab, var(--primary) 60%, var(--border));
+}
+.drop-zone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.drop-zone-icon {
+  font-size: 24px;
+  line-height: 1;
+  color: var(--primary);
+}
+.drop-zone-text {
+  font-weight: 600;
+  color: var(--text);
+}
+.drop-zone-info {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* When a file is selected */
+.drop-zone.has-file .drop-zone-text {
+  color: var(--primary);
+  font-weight: 700;
+}
+.form-status {
+  font-size: 13px;
+  text-align: center;
+  margin-top: 10px;
+}
+.form-status.success { color: #22c55e; }
+.form-status.error { color: var(--danger); }
+.form-status.info { color: var(--muted); }
