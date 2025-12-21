@@ -99,9 +99,25 @@ save_png($mask512, $mask512Path);
 save_png($apple180, $applePath);
 
 // Atualiza o favicon “live” como cópia de 192 (opcional)
-copy($icon192Path, $uploadsDir.'logo.png'); // sua UI continua olhando uploads/logo.png
+$newLogoPath = $uploadsDir . "logo-{$ver}.png";
+copy($icon192Path, $newLogoPath);
 
-// Limpa até manter os 3 conjuntos mais novos
+// Limpa logos antigas no diretório /uploads, mantendo as 5 mais novas
+$uploadedLogos = glob($uploadsDir . 'logo-*.png');
+if ($uploadedLogos && count($uploadedLogos) > 5) {
+  // Ordena por data de modificação (mais antigo primeiro)
+  array_multisort(
+    array_map('filemtime', $uploadedLogos),
+    SORT_ASC,
+    $uploadedLogos
+  );
+  $filesToDelete = array_slice($uploadedLogos, 0, count($uploadedLogos) - 5);
+  foreach ($filesToDelete as $file) {
+    @unlink($file);
+  }
+}
+
+// Limpa até manter os 3 conjuntos mais novos de ícones PWA
 $files = glob($iconsDir.'icon-192-*.png');
 rsort($files); // mais novos primeiro
 for ($i=3; $i<count($files); $i++) {
@@ -152,5 +168,5 @@ echo json_encode([
     'apple'   => "assets/icons/apple-touch-icon-$ver.png",
   ],
   'manifest' => "manifest.webmanifest?v=$ver",
-  'favicon'  => "uploads/logo.png?v=$ver"
+  'logoUrl'  => "uploads/logo-{$ver}.png"
 ]);

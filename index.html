@@ -878,5 +878,52 @@
       });
     });
   </script>
+
+  <!-- Adicionado: Script para carregar a logo dinâmica -->
+  <script>
+  (function () {
+    const DEFAULT_LOGO = 'assets/img/image.png';
+    const LATEST_LOGO_URL = 'api/latest_logo.php';
+
+    // Função para aplicar a logo nos elementos da página
+    function applyLogo(src) {
+      // Adiciona um cache-bust para garantir que a imagem seja recarregada
+      const finalSrc = src + '?' + Date.now();
+      const brandLogo = document.getElementById('brandLogo');
+      const brandLogoTop = document.getElementById('brandLogoTop');
+      const loadingLogo = document.getElementById('loadingLogo');
+      // Favicon principal da página
+      const favicon = document.querySelector('link[rel="icon"]'); 
+
+      if (brandLogo) brandLogo.src = finalSrc;
+      if (brandLogoTop) brandLogoTop.src = finalSrc;
+      if (loadingLogo) loadingLogo.src = finalSrc;
+      if (favicon) favicon.href = finalSrc;
+    }
+
+    // Função para buscar a logo mais recente
+    async function loadLatestLogo() {
+      try {
+        const response = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
+        const data = await response.json();
+        
+        if (data.ok && data.logoUrl) {
+          applyLogo(data.logoUrl);
+        } else {
+          // Se a API falhar ou não retornar URL, usa a padrão
+          applyLogo(DEFAULT_LOGO);
+        }
+      } catch (error) {
+        // Se houver erro de rede, usa a logo padrão
+        console.warn('Não foi possível carregar a logo mais recente. Usando a padrão.', error);
+        applyLogo(DEFAULT_LOGO);
+      }
+    }
+
+    // Executa a verificação assim que o DOM estiver pronto
+    document.addEventListener('DOMContentLoaded', loadLatestLogo);
+  })();
+  </script>
+
 </body>
 </html>

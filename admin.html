@@ -444,7 +444,7 @@
   (async function () {
     const DEFAULT_LOGO = 'assets/img/image.png';
     const UPLOAD_URL = 'api/upload_logo.php';
-    const SERVER_LOGO = () => 'uploads/logo.png?' + Date.now(); // cache-bust
+    const LATEST_LOGO_URL = 'api/latest_logo.php';
 
     const img = document.getElementById('brandLogo');
     const imgTop = document.getElementById('brandLogoTop');
@@ -455,18 +455,23 @@
     const btnInline = document.getElementById('changeLogoBtnInline');
 
     function applyLogo(src) {
-      if (img) img.src = src;
-      if (imgTop) imgTop.src = src;
-      if (loadingLogo) loadingLogo.src = src;
-      if (favicon) favicon.href = src;
+      // Adiciona um cache-bust para garantir que a imagem seja recarregada
+      const finalSrc = src + '?' + Date.now();
+      if (img) img.src = finalSrc;
+      if (imgTop) imgTop.src = finalSrc;
+      if (loadingLogo) loadingLogo.src = finalSrc;
+      if (favicon) favicon.href = finalSrc;
     }
 
-    async function loadServerLogo() {
-      // tenta carregar a logo do servidor; se 404, cai no padrão
+    async function loadLatestLogo() {
       try {
-        const res = await fetch('uploads/logo.png', { cache: 'no-store' });
-        if (res.ok) applyLogo(SERVER_LOGO());
-        else applyLogo(DEFAULT_LOGO);
+        const res = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
+        const data = await res.json();
+        if (data.ok && data.logoUrl) {
+          applyLogo(data.logoUrl);
+        } else {
+          applyLogo(DEFAULT_LOGO);
+        }
       } catch {
         applyLogo(DEFAULT_LOGO);
       }
@@ -479,9 +484,10 @@
       try {
         const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
         const j = await resp.json();
-        if (!j.ok) throw new Error(j.error || 'Falha no upload');
-        // força recarregar a imagem recém-enviada
-        applyLogo(SERVER_LOGO());
+        if (!j.ok || !j.logoUrl) throw new Error(j.error || 'Falha no upload');
+        
+        // Usa a URL retornada diretamente pelo servidor
+        applyLogo(j.logoUrl);
         alert('✅ Logo atualizada com sucesso!');
       } catch (err) {
         alert('❌ Erro ao enviar: ' + err.message);
@@ -489,7 +495,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      loadServerLogo();
+      loadLatestLogo();
       adminLoadHomeMessage();
       if (typeof renderRecentUploadsPanel === 'function') {
         renderRecentUploadsPanel();

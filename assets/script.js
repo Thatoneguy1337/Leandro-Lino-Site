@@ -650,7 +650,9 @@ async function loadLastUploadAuto() {
             return success;
         }
         
-        setStatus('💡 Faça upload de um arquivo para começar');
+        // Nenhuma sessão ou arquivo encontrado, então localiza o usuário
+        setStatus('💡 Nenhuma sessão. Tentando encontrar sua localização...');
+        locateOnceAnimated();
         return false;
         
     } catch (error) {
@@ -1334,35 +1336,29 @@ $("#closeShortcuts")?.addEventListener("click", () => dlg?.close());
 $("#okShortcuts")?.addEventListener("click", () => dlg?.close());
 
 const sidebar = $(".sidebar");
-const openSidebarBtn = $("#openSidebar");
-const closeSidebarBtn = $("#closeSidebar");
 
-openSidebarBtn?.addEventListener("click", (e) => {
+$("#openSidebar")?.addEventListener("click", (e) => {
+  // Stop the click from bubbling up to the document listener
   e.stopPropagation();
   if (!sidebar) return;
+  // Explicitly open the sidebar
   sidebar.classList.add("open");
   document.body.classList.add("sidebar-open");
 });
 
-const closeMenu = () => {
+$("#closeSidebar")?.addEventListener("click", () => {
   if (!sidebar) return;
   sidebar.classList.remove("open");
   document.body.classList.remove("sidebar-open");
-};
-
-closeSidebarBtn?.addEventListener("click", closeMenu);
+});
 
 document.addEventListener("click", (e) => {
-  if (!sidebar || !sidebar.classList.contains("open")) return;
-
-  // If the click is on the open button, do nothing (already handled).
-  if (openSidebarBtn?.contains(e.target)) {
-    return;
-  }
-
-  // If the click is outside the sidebar, close it.
-  if (!sidebar.contains(e.target)) {
-    closeMenu();
+  if (!sidebar) return;
+  // If the sidebar is open and the click was outside of it, close it.
+  // The initial open click is ignored due to stopPropagation().
+  if (sidebar.classList.contains("open") && !sidebar.contains(e.target)) {
+    sidebar.classList.remove("open");
+    document.body.classList.remove("sidebar-open");
   }
 });
 
