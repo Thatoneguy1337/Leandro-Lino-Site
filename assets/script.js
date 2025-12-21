@@ -184,7 +184,7 @@ function locateOnceAnimated() {
       const { latitude, longitude } = position.coords;
       const latlng = [latitude, longitude];
       console.log('✅ Geolocation success:', latlng);
-      map.flyTo(latlng, Math.max(map.getZoom(), 15), { duration: 1.5 });
+      map.flyTo(latlng, Math.max(map.getZoom(), IS_MOBILE ? 17 : 15), { duration: 1.5 });
 
       const tempMarker = L.circleMarker(latlng, {
         radius: 10,
@@ -1455,7 +1455,7 @@ const draggableSidebar = {
     document.addEventListener('touchcancel', onEnd);
   }
 };
-draggableSidebar.init();
+// draggableSidebar.init();
 
 const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
@@ -1587,7 +1587,8 @@ const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
   center: [-21.7947, -48.1780],
-  zoom: 16, // Increased initial zoom from 14 to 16
+  zoom: IS_MOBILE ? 17 : 16,
+  maxZoom: IS_MOBILE ? 21 : 19,
   zoomControl: false,
   worldCopyJump: true,
   preferCanvas: true,
@@ -1606,10 +1607,10 @@ function makeBaseController(map){
 
   const bases = {
     osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
+      attribution: '© OpenStreetMap', maxZoom: IS_MOBILE ? 21 : 19, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
     }),
     sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '© Esri, Maxar', maxZoom: 19, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
+      attribution: '© Esri, Maxar', maxZoom: IS_MOBILE ? 21 : 19, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
     }),
     terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenTopoMap', maxZoom: 17, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 0
@@ -1618,13 +1619,13 @@ function makeBaseController(map){
 
   const labels = {
     cartoLight: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', {
-      pane: 'labels', maxZoom: 20, opacity: 1, attribution: '© CARTO'
+      pane: 'labels', maxZoom: IS_MOBILE ? 21 : 20, opacity: 1, attribution: '© CARTO'
     }),
     esriTrans: L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{x}/{y}', {
-      pane: 'labels', maxZoom: 19, opacity: 1, attribution: '© Esri'
+      pane: 'labels', maxZoom: IS_MOBILE ? 21 : 19, opacity: 1, attribution: '© Esri'
     }),
     esriPlaces: L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{x}/{y}', {
-      pane: 'labels', maxZoom: 19, opacity: 1, attribution: '© Esri'
+      pane: 'labels', maxZoom: IS_MOBILE ? 21 : 19, opacity: 1, attribution: '© Esri'
     })
   };
 
@@ -1777,7 +1778,7 @@ function flyToLocal(item) {
     showResults(false);
     return;
   }
-  const z = Math.max(map.getZoom(), 15);
+  const z = Math.max(map.getZoom(), IS_MOBILE ? 17 : 15);
   map.flyTo([item.lat, item.lon], z, { duration: 0.9 });
   const temp = L.circleMarker([item.lat, item.lon], {
     radius: 8, color: "#111", weight: 2, fillColor: "#4dabf7", fillOpacity: 1, renderer: fastRenderer
@@ -1888,16 +1889,84 @@ function flyToResult(it) {
 async function handleSearch(e) {
   if (e) e.preventDefault();
   const q = (searchInput?.value || "").trim();
-  if (!q || q.length < 2) { renderResults([]); return; }
+
+  // Se o botão de busca for clicado com o campo vazio, mostra todos os resultados
+  if (e?.type === 'click' && q === '') {
+    const allItems = [];
+    const seen = new Set();
+
+    // Adiciona todos os pontos (marcadores/postos)
+    (localIndex.points || []).forEach(p => {
+      const k = `point-${p.code || p.name}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      allItems.push({ 
+        kind: "point", 
+        icon: "📍", 
+        name: p.code || p.name, 
+        desc: (p.code && p.name !== p.code) ? p.name : ``, 
+        lat: p.lat, 
+        lon: p.lon, 
+        _score: 10 
+      });
+    });
+
+    // Adiciona todos os grupos (alimentadores/linhas)
+    (localIndex.groups || []).forEach(g => {
+      const k = `group-${g.name}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      allItems.push({ 
+        kind: "group", 
+        icon: "🗂️", 
+        name: g.name, 
+        desc: "Grupo/Alimentador", 
+        lat: g.lat, 
+        lon: g.lon, 
+        bbox: g.bbox, 
+        _score: 5 
+      });
+    });
+
+    // Ordena alfabeticamente pelo nome
+    allItems.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    if (allItems.length > 0) {
+      renderResults(allItems);
+      setStatus(`Exibindo todos os ${allItems.length} itens disponíveis.`);
+    } else {
+      renderResults([]); // Mostra "Nenhum resultado"
+      setStatus("Nenhum item local para exibir.");
+    }
+    searchInput?.focus();
+    return;
+  }
+
+  // Lógica de busca original quando há texto no campo
+  if (!q || q.length < 2) { 
+    renderResults([]); 
+    return; 
+  }
   const local = searchLocal(q);
-  if (local.length === 1) { flyToLocal(local[0]); return; }
-  if (local.length > 1) { renderResults(local); setStatus(`Resultados no mapa para "${q}"`); return; }
+  if (local.length === 1) { 
+    flyToLocal(local[0]); 
+    return; 
+  }
+  if (local.length > 1) { 
+    renderResults(local); 
+    setStatus(`Resultados no mapa para "${q}"`); 
+    return; 
+  }
+  
   setStatus(`Buscando "${q}"…`);
   showLoading(true, "Buscando localização…");
   try {
     const remote = rankResults(await geocode(q));
     showLoading(false);
-    if (remote.length === 1) { flyToResult(remote[0]); return; }
+    if (remote.length === 1) { 
+      flyToResult(remote[0]); 
+      return; 
+    }
     renderResults(remote);
     setStatus(remote.length ? `Resultados para "${q}"` : `Nada encontrado para "${q}"`);
   } catch (err) {
@@ -2454,7 +2523,7 @@ map.on('click', (e)=>{
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
   const totalBounds = L.latLngBounds();
-  const MIN_START_ZOOM = 14;
+  const MIN_START_ZOOM = IS_MOBILE ? 16 : 14;
   const seenLines = new Set();
 
   showLoading(true, `Carregando mapa elétrico de ${cityHint || "sua cidade"}…`);

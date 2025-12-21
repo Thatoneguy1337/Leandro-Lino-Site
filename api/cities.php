@@ -329,15 +329,10 @@ try {
         $tmp_name = $file['tmp_name'];
         $original_name = $file['name'];
 
-        // Valida o tipo de arquivo (MIME e extensão)
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $tmp_name);
-        finfo_close($finfo);
-
-        $allowed_mime = 'application/vnd.google-earth.kmz';
+        // Valida o tipo de arquivo apenas pela extensão
         $file_extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
 
-        if ($mime_type !== $allowed_mime || $file_extension !== 'kmz') {
+        if ($file_extension !== 'kmz') {
             json_error('Tipo de arquivo inválido. Apenas arquivos .kmz são permitidos.');
         }
 
