@@ -184,7 +184,7 @@ function locateOnceAnimated() {
       const { latitude, longitude } = position.coords;
       const latlng = [latitude, longitude];
       console.log('✅ Geolocation success:', latlng);
-      map.flyTo(latlng, Math.max(map.getZoom(), IS_MOBILE ? 17 : 15), { duration: 1.5 });
+      map.flyTo(latlng, Math.max(map.getZoom(), IS_MOBILE ? 18 : 15), { duration: 1.5 });
 
       const tempMarker = L.circleMarker(latlng, {
         radius: 10,
@@ -1587,7 +1587,7 @@ const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
   center: [-21.7947, -48.1780],
-  zoom: IS_MOBILE ? 17 : 16,
+  zoom: IS_MOBILE ? 18 : 16,
   maxZoom: IS_MOBILE ? 21 : 19,
   zoomControl: false,
   worldCopyJump: true,
@@ -1778,7 +1778,7 @@ function flyToLocal(item) {
     showResults(false);
     return;
   }
-  const z = Math.max(map.getZoom(), IS_MOBILE ? 17 : 15);
+  const z = Math.max(map.getZoom(), IS_MOBILE ? 18 : 15);
   map.flyTo([item.lat, item.lon], z, { duration: 0.9 });
   const temp = L.circleMarker([item.lat, item.lon], {
     radius: 8, color: "#111", weight: 2, fillColor: "#4dabf7", fillOpacity: 1, renderer: fastRenderer
@@ -2523,7 +2523,7 @@ map.on('click', (e)=>{
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
   const totalBounds = L.latLngBounds();
-  const MIN_START_ZOOM = IS_MOBILE ? 16 : 14;
+  const MIN_START_ZOOM = IS_MOBILE ? 17 : 14;
   const seenLines = new Set();
 
   showLoading(true, `Carregando mapa elétrico de ${cityHint || "sua cidade"}…`);
