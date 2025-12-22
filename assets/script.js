@@ -2523,7 +2523,7 @@ map.on('click', (e)=>{
 async function parseKML(text, cityHint = "") {
   const groupBounds = {};
   const totalBounds = L.latLngBounds();
-  const MIN_START_ZOOM = IS_MOBILE ? 17 : 14;
+  const MIN_START_ZOOM = IS_MOBILE ? 19 : 17;
   const seenLines = new Set();
 
   showLoading(true, `Carregando mapa elétrico de ${cityHint || "sua cidade"}…`);
