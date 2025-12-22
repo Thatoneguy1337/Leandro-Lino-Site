@@ -228,7 +228,7 @@ function locateOnceAnimated() {
     },
     {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 20000, // Increased timeout to 20 seconds
       maximumAge: 0
     }
   );
@@ -650,9 +650,8 @@ async function loadLastUploadAuto() {
             return success;
         }
         
-        // Nenhuma sessão ou arquivo encontrado, então localiza o usuário
-        setStatus('💡 Nenhuma sessão. Tentando encontrar sua localização...');
-        locateOnceAnimated();
+        // Nenhuma sessão ou arquivo encontrado
+        setStatus('💡 Nenhuma sessão anterior para carregar.');
         return false;
         
     } catch (error) {
@@ -929,6 +928,11 @@ function getTimeAgo(timestamp) {
 async function initializeCacheSystem() {
     console.log('🚀 Iniciando sistema de cache...');
     setupAutoSave();
+    
+    // Pede a localização do usuário ao iniciar, após um breve intervalo para o mapa inicializar
+    setTimeout(() => {
+        locateOnceAnimated();
+    }, 500);
     
     setTimeout(async () => {
         const loadedFromProcessedCache = await loadProcessedMapData();
@@ -1587,7 +1591,7 @@ const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
   center: [-21.7947, -48.1780],
-  zoom: IS_MOBILE ? 18 : 16,
+  zoom: IS_MOBILE ? 17 : 16,
   maxZoom: IS_MOBILE ? 21 : 19,
   zoomControl: false,
   worldCopyJump: true,
