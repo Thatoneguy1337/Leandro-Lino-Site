@@ -208,7 +208,19 @@ try {
         if (empty($name)) json_error('Nome da cidade é obrigatório');
         
         $index = load_index();
-        $id = 'c_' . bin2hex(random_bytes(8));
+        $custom_path = trim($_POST['custom_path'] ?? '');
+        
+        if (!empty($custom_path)) {
+            // Sanitize: allow only a-z 0-9 - _
+            $id = preg_replace('/[^a-zA-Z0-9_\-]/', '', $custom_path);
+            if (empty($id)) {
+                $id = 'c_' . bin2hex(random_bytes(8));
+            } elseif (is_dir($UPLOAD_DIR . '/' . $id)) {
+                 $id = $id . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
+            }
+        } else {
+            $id = 'c_' . bin2hex(random_bytes(8));
+        }
         
         if (empty($prefix)) {
             $prefix = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $name), 0, 3));

@@ -20,15 +20,15 @@
    ========================================================= */
 
 /* ---------- Parâmetros de performance ---------- */
-const Z_MARKERS_ON   = 15;
-const Z_LABELS_ON    = 12;
-const CHUNK_SIZE     = 2000;
-const LINE_SMOOTH    = 2.0;
+const Z_MARKERS_ON = 15;
+const Z_LABELS_ON = 12;
+const CHUNK_SIZE = 2000;
+const LINE_SMOOTH = 2.0;
 const LINE_BASE_W = 4;
-const LINE_MAX_W  = 6;
-const Z_POST_TEXT_ON   = 14;
-const MAX_POST_LABELS  = 100;
-const LABEL_GRID_PX    = 96;
+const LINE_MAX_W = 6;
+const Z_POST_TEXT_ON = 14;
+const MAX_POST_LABELS = 100;
+const LABEL_GRID_PX = 96;
 const MAX_STATUS_LEN = 40;
 
 /* ========================
@@ -48,83 +48,83 @@ const STORE_NAME_POLYGONS = 'processedMapPolygons'; // For polygons
 
 // IndexedDB Helper Functions
 async function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 3); // Bump version to 3
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 3); // Bump version to 3
 
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME_LINES)) {
-                db.createObjectStore(STORE_NAME_LINES);
-            }
-            if (!db.objectStoreNames.contains(STORE_NAME_MARKERS)) {
-                db.createObjectStore(STORE_NAME_MARKERS);
-            }
-            if (!db.objectStoreNames.contains(STORE_NAME_POLYGONS)) {
-                db.createObjectStore(STORE_NAME_POLYGONS); // Create polygon store
-            }
-        };
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME_LINES)) {
+        db.createObjectStore(STORE_NAME_LINES);
+      }
+      if (!db.objectStoreNames.contains(STORE_NAME_MARKERS)) {
+        db.createObjectStore(STORE_NAME_MARKERS);
+      }
+      if (!db.objectStoreNames.contains(STORE_NAME_POLYGONS)) {
+        db.createObjectStore(STORE_NAME_POLYGONS); // Create polygon store
+      }
+    };
 
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
 
-        request.onerror = (event) => {
-            console.error('IndexedDB error:', event.target.errorCode);
-            reject('IndexedDB error');
-        };
-    });
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.errorCode);
+      reject('IndexedDB error');
+    };
+  });
 }
 
 async function putIntoDB(storeName, key, value) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.put(value, key);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    const request = store.put(value, key);
 
-        request.onsuccess = () => {
-            console.log(`✅ putIntoDB success: Store='${storeName}', Key='${key}'`);
-            resolve();
-        };
-        request.onerror = (event) => {
-            console.error(`❌ putIntoDB error: Store='${storeName}', Key='${key}', Error='${event.target.error?.name || event.target.errorCode}'`, event.target.error);
-            reject(event.target.error);
-        };
-    });
+    request.onsuccess = () => {
+      console.log(`✅ putIntoDB success: Store='${storeName}', Key='${key}'`);
+      resolve();
+    };
+    request.onerror = (event) => {
+      console.error(`❌ putIntoDB error: Store='${storeName}', Key='${key}', Error='${event.target.error?.name || event.target.errorCode}'`, event.target.error);
+      reject(event.target.error);
+    };
+  });
 }
 
 async function getFromDB(storeName, key) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        const request = store.get(key);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+    const request = store.get(key);
 
-        request.onsuccess = () => {
-            if (request.result !== undefined) {
-                console.log(`✅ getFromDB success: Store='${storeName}', Key='${key}', Result found.`);
-            } else {
-                console.warn(`⚠️ getFromDB success: Store='${storeName}', Key='${key}', Result not found (undefined).`);
-            }
-            resolve(request.result);
-        };
-        request.onerror = (event) => {
-            console.error(`❌ getFromDB error: Store='${storeName}', Key='${key}', Error='${event.target.error?.name || event.target.errorCode}'`, event.target.error);
-            reject(event.target.error);
-        };
-    });
+    request.onsuccess = () => {
+      if (request.result !== undefined) {
+        console.log(`✅ getFromDB success: Store='${storeName}', Key='${key}', Result found.`);
+      } else {
+        console.warn(`⚠️ getFromDB success: Store='${storeName}', Key='${key}', Result not found (undefined).`);
+      }
+      resolve(request.result);
+    };
+    request.onerror = (event) => {
+      console.error(`❌ getFromDB error: Store='${storeName}', Key='${key}', Error='${event.target.error?.name || event.target.errorCode}'`, event.target.error);
+      reject(event.target.error);
+    };
+  });
 }
 
 async function deleteFromDB(storeName, key) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.delete(key);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    const request = store.delete(key);
 
-        request.onsuccess = () => resolve();
-        request.onerror = (event) => reject(event.target.errorCode);
-    });
+    request.onsuccess = () => resolve();
+    request.onerror = (event) => reject(event.target.errorCode);
+  });
 }
 
 const API_CITIES = 'api/cities.php';
@@ -134,9 +134,9 @@ window.currentCityId = null; // Declare global variable
 /* ----------------- Utils ----------------- */
 const $ = (s, r = document) => r.querySelector(s);
 const statusEl = $("#statusText"),
-      coordsEl = $("#coordinates");
+  coordsEl = $("#coordinates");
 const loadingEl = $("#loadingOverlay"),
-      loadingTxt = $("#loadingText");
+  loadingTxt = $("#loadingText");
 
 const setStatus = (m) => {
   if (!statusEl) return;
@@ -240,140 +240,140 @@ function locateOnceAnimated() {
 
 // Salvar upload no cache
 async function saveRecentUpload(uploadInfo) {
-    try {
-        const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
-        const filtered = cache.filter(item => item.file_path !== uploadInfo.file_path);
-        filtered.unshift({
-            ...uploadInfo,
-            cached_at: Date.now(),
-            client_cache: true
-        });
-        const limited = filtered.slice(0, 5);
-        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
-        console.log('✅ Upload salvo no cache:', uploadInfo.file_name);
-        renderRecentUploadsPanel();
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao salvar upload:', error);
-        return false;
-    }
+  try {
+    const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
+    const filtered = cache.filter(item => item.file_path !== uploadInfo.file_path);
+    filtered.unshift({
+      ...uploadInfo,
+      cached_at: Date.now(),
+      client_cache: true
+    });
+    const limited = filtered.slice(0, 5);
+    localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
+    console.log('✅ Upload salvo no cache:', uploadInfo.file_name);
+    renderRecentUploadsPanel();
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar upload:', error);
+    return false;
+  }
 }
 
 // Obter uploads do cache
 function getRecentUploads() {
-    try {
-        const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
-        const now = Date.now();
-        const fresh = cache.filter(item => now - (item.cached_at || 0) < 365 * 24 * 60 * 60 * 1000);
-        if (fresh.length !== cache.length) {
-            localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(fresh));
-        }
-        return fresh;
-    } catch {
-        return [];
+  try {
+    const cache = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || '[]');
+    const now = Date.now();
+    const fresh = cache.filter(item => now - (item.cached_at || 0) < 365 * 24 * 60 * 60 * 1000);
+    if (fresh.length !== cache.length) {
+      localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(fresh));
     }
+    return fresh;
+  } catch {
+    return [];
+  }
 }
 
 // Salvar estado da sessão
 function saveSessionState() {
-    if (!map) return;
-    
-    const state = {
-        center: map.getCenter(),
-        zoom: map.getZoom(),
-        bounds: map.getBounds().toBBoxString(),
-        timestamp: Date.now(),
-        currentFile: currentFile?.textContent || '',
-        visibleLayers: getVisibleLayers(),
-        visiblePosts: getVisiblePosts(),
-        mapView: {
-            center: [map.getCenter().lat, map.getCenter().lng],
-            zoom: map.getZoom()
-        },
-        cityId: window.currentCityId // Save the current city ID
-    };
-    
-    localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
+  if (!map) return;
+
+  const state = {
+    center: map.getCenter(),
+    zoom: map.getZoom(),
+    bounds: map.getBounds().toBBoxString(),
+    timestamp: Date.now(),
+    currentFile: currentFile?.textContent || '',
+    visibleLayers: getVisibleLayers(),
+    visiblePosts: getVisiblePosts(),
+    mapView: {
+      center: [map.getCenter().lat, map.getCenter().lng],
+      zoom: map.getZoom()
+    },
+    cityId: window.currentCityId // Save the current city ID
+  };
+
+  localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(state));
 }
 
 async function saveProcessedMapData() {
-    console.log('DEBUG: saveProcessedMapData called.');
-    if (!order.length && !postOrder.length) {
-        console.log('DEBUG: No lines or markers to save. Returning early.');
-        return;
-    }
+  console.log('DEBUG: saveProcessedMapData called.');
+  if (!order.length && !postOrder.length) {
+    console.log('DEBUG: No lines or markers to save. Returning early.');
+    return;
+  }
 
-    // Ensure unique entries in order and postOrder before saving
-    const uniqueOrder = [...new Set(order)];
-    const uniquePostOrder = [...new Set(postOrder)];
+  // Ensure unique entries in order and postOrder before saving
+  const uniqueOrder = [...new Set(order)];
+  const uniquePostOrder = [...new Set(postOrder)];
 
-    const linesToSave = [];
-    const markersToSave = [];
-    const polygonsToSave = []; // Array for polygons
+  const linesToSave = [];
+  const markersToSave = [];
+  const polygonsToSave = []; // Array for polygons
 
-    // Collect line and polygon data
-    order.forEach(groupName => {
-        if (groups[groupName]) {
-            groups[groupName].eachLayer(layer => {
-                if (layer instanceof L.Polygon) { // Corrected condition
-                    polygonsToSave.push({
-                        group: groupName,
-                        color: layer.options.color,
-                        coords: mapLatLngsToArray(layer.getLatLngs()) // Convert LatLng objects to plain arrays
-                    });
-                }
-                else if (layer instanceof L.Polyline && layer.__levels) {
-                    linesToSave.push({
-                        group: groupName,
-                        color: layer.options.color,
-                        lods: layer.__levels
-                    });
-                }
-            });
+  // Collect line and polygon data
+  order.forEach(groupName => {
+    if (groups[groupName]) {
+      groups[groupName].eachLayer(layer => {
+        if (layer instanceof L.Polygon) { // Corrected condition
+          polygonsToSave.push({
+            group: groupName,
+            color: layer.options.color,
+            coords: mapLatLngsToArray(layer.getLatLngs()) // Convert LatLng objects to plain arrays
+          });
         }
-    });
-
-    // Collect marker data
-    allPostMarkers.forEach(pm => {
-        markersToSave.push({
-            coords: [pm.lat, pm.lng],
-            group: pm.m.__groupName,
-            name: pm.text,
-            code: pm.code, // Save the code for reloading search index
-            extra: {
-                Alim: pm.m.__groupName,
-                Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined
-            }
-        });
-    });
-
-    const metadataToSave = {
-        order: uniqueOrder,
-        postOrder: uniquePostOrder,
-        stats: {
-            markers: stats.markers,
-            lines: stats.lines,
-            polygons: stats.polygons
-        },
-        timestamp: Date.now()
-    };
-
-    console.log(`DEBUG: Collected ${linesToSave.length} lines, ${markersToSave.length} markers, and ${polygonsToSave.length} polygons.`);
-
-    try {
-        // Save lines, markers, and polygons to IndexedDB
-        await putIntoDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY, linesToSave);
-        await putIntoDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY, markersToSave);
-        await putIntoDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY, polygonsToSave);
-
-        // Save metadata to localStorage
-        localStorage.setItem(LAST_PROCESSED_MAP_DATA_KEY, JSON.stringify(metadataToSave));
-
-        console.log('✅ Dados do mapa processados salvos no cache (IndexedDB e LocalStorage).');
-    } catch (e) {
-        console.error('❌ Erro ao salvar dados do mapa processados:', e);
-        // Log specific IndexedDB errors if possible
+        else if (layer instanceof L.Polyline && layer.__levels) {
+          linesToSave.push({
+            group: groupName,
+            color: layer.options.color,
+            lods: layer.__levels
+          });
+        }
+      });
     }
+  });
+
+  // Collect marker data
+  allPostMarkers.forEach(pm => {
+    markersToSave.push({
+      coords: [pm.lat, pm.lng],
+      group: pm.m.__groupName,
+      name: pm.text,
+      code: pm.code, // Save the code for reloading search index
+      extra: {
+        Alim: pm.m.__groupName,
+        Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined
+      }
+    });
+  });
+
+  const metadataToSave = {
+    order: uniqueOrder,
+    postOrder: uniquePostOrder,
+    stats: {
+      markers: stats.markers,
+      lines: stats.lines,
+      polygons: stats.polygons
+    },
+    timestamp: Date.now()
+  };
+
+  console.log(`DEBUG: Collected ${linesToSave.length} lines, ${markersToSave.length} markers, and ${polygonsToSave.length} polygons.`);
+
+  try {
+    // Save lines, markers, and polygons to IndexedDB
+    await putIntoDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY, linesToSave);
+    await putIntoDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY, markersToSave);
+    await putIntoDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY, polygonsToSave);
+
+    // Save metadata to localStorage
+    localStorage.setItem(LAST_PROCESSED_MAP_DATA_KEY, JSON.stringify(metadataToSave));
+
+    console.log('✅ Dados do mapa processados salvos no cache (IndexedDB e LocalStorage).');
+  } catch (e) {
+    console.error('❌ Erro ao salvar dados do mapa processados:', e);
+    // Log specific IndexedDB errors if possible
+  }
 }
 
 // Restaurar última sessão
@@ -382,196 +382,196 @@ window.restoredState = null;
 
 // Restaurar última sessão
 function restoreLastSession() {
-    try {
-        const saved = localStorage.getItem(LAST_SESSION_KEY);
-        if (!saved) return null;
-        
-        const state = JSON.parse(saved);
-        if (Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem(LAST_SESSION_KEY);
-            return null;
-        }
-        
-        if (state.mapView && state.mapView.center) {
-            map.setView(state.mapView.center, state.mapView.zoom, { animate: false });
-        }
-        
-        if (state.currentFile && currentFile) {
-            currentFile.textContent = state.currentFile;
-        }
-        
-        window.restoredState = state;
-        setStatus('🔄 Sessão anterior restaurada');
-        return state; // Return the whole state object
-        
-    } catch (error) {
-        console.error('❌ Erro ao restaurar sessão:', error);
-        window.restoredState = null;
-        return null;
+  try {
+    const saved = localStorage.getItem(LAST_SESSION_KEY);
+    if (!saved) return null;
+
+    const state = JSON.parse(saved);
+    if (Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(LAST_SESSION_KEY);
+      return null;
     }
+
+    if (state.mapView && state.mapView.center) {
+      map.setView(state.mapView.center, state.mapView.zoom, { animate: false });
+    }
+
+    if (state.currentFile && currentFile) {
+      currentFile.textContent = state.currentFile;
+    }
+
+    window.restoredState = state;
+    setStatus('🔄 Sessão anterior restaurada');
+    return state; // Return the whole state object
+
+  } catch (error) {
+    console.error('❌ Erro ao restaurar sessão:', error);
+    window.restoredState = null;
+    return null;
+  }
 }
 
 async function loadProcessedMapData() {
-    console.log('DEBUG: loadProcessedMapData called.');
-    try {
-        // Load metadata from localStorage
-        const metadataSaved = localStorage.getItem(LAST_PROCESSED_MAP_DATA_KEY);
-        if (!metadataSaved) {
-            console.log('DEBUG: No metadata found in localStorage.');
-            return false;
-        }
-        
-        const metadata = JSON.parse(metadataSaved);
-        console.log('DEBUG: Loaded metadata:', metadata);
-
-        // Check if metadata is too old (e.g., 7 days)
-        if (Date.now() - metadata.timestamp > 365 * 24 * 60 * 60 * 1000) {
-            console.log('DEBUG: Cache expired. Clearing all processed map data.');
-            localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
-            await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
-            await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
-            await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY); // Clear polygons
-            return false;
-        }
-
-        // Load lines, markers, and polygons from IndexedDB
-        const lines = await getFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
-        const markers = await getFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
-        const polygons = await getFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY);
-
-        // More robust check: only fail if the DB read actually failed (returned undefined)
-        if (lines === undefined || markers === undefined || polygons === undefined) {
-            console.log('DEBUG: Falha ao ler do IndexedDB. Limpando cache.');
-            localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
-            await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
-            await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
-            await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY);
-            return false;
-        }
-
-        showLoading(true, 'Carregando mapa do cache...');
-
-        // Clear existing map layers before rendering from cache
-        if (published) { try { map.removeLayer(published); } catch {} }
-        resetGroups();
-
-        // Re-populate global arrays
-        order.length = 0;
-        postOrder.length = 0;
-        metadata.order.forEach(item => order.push(item));
-        metadata.postOrder.forEach(item => postOrder.push(item));
-
-        // Reconstruct processedData for renderFromProcessed
-        const processedData = {
-            lines: lines,
-            markers: markers,
-            polygons: polygons, // Pass polygons to the renderer
-            order: metadata.order,
-            postOrder: metadata.postOrder,
-            stats: metadata.stats,
-            timestamp: metadata.timestamp
-        };
-
-        // Render the map from the cached data
-        await renderFromProcessed(processedData);
-
-        // Restaura a visibilidade das camadas da última sessão
-        const savedStateJSON = localStorage.getItem(LAST_SESSION_KEY);
-        if (savedStateJSON) {
-            const restoredState = JSON.parse(savedStateJSON);
-            if (restoredState && (Date.now() - restoredState.timestamp < 24 * 60 * 60 * 1000)) {
-                applyLayerVisibility(restoredState);
-            }
-        }
-
-        setStatus('✅ Mapa carregado do cache!');
-        showLoading(false);
-        return true;
-
-    } catch (error) {
-        console.error('❌ Erro ao carregar dados do mapa processados do cache:', error);
-        showLoading(false);
-        return false;
+  console.log('DEBUG: loadProcessedMapData called.');
+  try {
+    // Load metadata from localStorage
+    const metadataSaved = localStorage.getItem(LAST_PROCESSED_MAP_DATA_KEY);
+    if (!metadataSaved) {
+      console.log('DEBUG: No metadata found in localStorage.');
+      return false;
     }
+
+    const metadata = JSON.parse(metadataSaved);
+    console.log('DEBUG: Loaded metadata:', metadata);
+
+    // Check if metadata is too old (e.g., 7 days)
+    if (Date.now() - metadata.timestamp > 365 * 24 * 60 * 60 * 1000) {
+      console.log('DEBUG: Cache expired. Clearing all processed map data.');
+      localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+      await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+      await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+      await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY); // Clear polygons
+      return false;
+    }
+
+    // Load lines, markers, and polygons from IndexedDB
+    const lines = await getFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+    const markers = await getFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+    const polygons = await getFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY);
+
+    // More robust check: only fail if the DB read actually failed (returned undefined)
+    if (lines === undefined || markers === undefined || polygons === undefined) {
+      console.log('DEBUG: Falha ao ler do IndexedDB. Limpando cache.');
+      localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY);
+      await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY);
+      await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY);
+      await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY);
+      return false;
+    }
+
+    showLoading(true, 'Carregando mapa do cache...');
+
+    // Clear existing map layers before rendering from cache
+    if (published) { try { map.removeLayer(published); } catch { } }
+    resetGroups();
+
+    // Re-populate global arrays
+    order.length = 0;
+    postOrder.length = 0;
+    metadata.order.forEach(item => order.push(item));
+    metadata.postOrder.forEach(item => postOrder.push(item));
+
+    // Reconstruct processedData for renderFromProcessed
+    const processedData = {
+      lines: lines,
+      markers: markers,
+      polygons: polygons, // Pass polygons to the renderer
+      order: metadata.order,
+      postOrder: metadata.postOrder,
+      stats: metadata.stats,
+      timestamp: metadata.timestamp
+    };
+
+    // Render the map from the cached data
+    await renderFromProcessed(processedData);
+
+    // Restaura a visibilidade das camadas da última sessão
+    const savedStateJSON = localStorage.getItem(LAST_SESSION_KEY);
+    if (savedStateJSON) {
+      const restoredState = JSON.parse(savedStateJSON);
+      if (restoredState && (Date.now() - restoredState.timestamp < 24 * 60 * 60 * 1000)) {
+        applyLayerVisibility(restoredState);
+      }
+    }
+
+    setStatus('✅ Mapa carregado do cache!');
+    showLoading(false);
+    return true;
+
+  } catch (error) {
+    console.error('❌ Erro ao carregar dados do mapa processados do cache:', error);
+    showLoading(false);
+    return false;
+  }
 }
 
 // Obter layers visíveis
 function getVisibleLayers() {
-    const visible = [];
-    if (window.order && window.groups) {
-        window.order.forEach(name => {
-            if (window.groups[name] && map.hasLayer(window.groups[name])) {
-                visible.push(name);
-            }
-        });
-    }
-    return visible;
+  const visible = [];
+  if (window.order && window.groups) {
+    window.order.forEach(name => {
+      if (window.groups[name] && map.hasLayer(window.groups[name])) {
+        visible.push(name);
+      }
+    });
+  }
+  return visible;
 }
 
 // Obter posts visíveis
 function getVisiblePosts() {
-    const visible = [];
-    if (window.postOrder && window.postGroups) {
-        window.postOrder.forEach(name => {
-            if (window.postGroups[name] && map.hasLayer(window.postGroups[name])) {
-                visible.push(name);
-            }
-        });
-    }
-    return visible;
+  const visible = [];
+  if (window.postOrder && window.postGroups) {
+    window.postOrder.forEach(name => {
+      if (window.postGroups[name] && map.hasLayer(window.postGroups[name])) {
+        visible.push(name);
+      }
+    });
+  }
+  return visible;
 }
 
 // Aplica o estado de visibilidade das camadas a partir de uma sessão salva
 function applyLayerVisibility(state) {
-    if (!state || (!state.visibleLayers && !state.visiblePosts)) {
-        console.log('ℹ️ Nenhuma configuração de visibilidade de camada para aplicar.');
-        return;
-    }
+  if (!state || (!state.visibleLayers && !state.visiblePosts)) {
+    console.log('ℹ️ Nenhuma configuração de visibilidade de camada para aplicar.');
+    return;
+  }
 
-    const { visibleLayers, visiblePosts } = state;
-    console.log('🔄 Aplicando visibilidade de camadas da sessão anterior...');
+  const { visibleLayers, visiblePosts } = state;
+  console.log('🔄 Aplicando visibilidade de camadas da sessão anterior...');
 
-    // Lida com camadas de Linhas (Alimentadores)
-    if (Array.isArray(visibleLayers) && window.order && layersListLines) {
-        window.order.forEach(name => {
-            const shouldBeVisible = visibleLayers.includes(name);
-            const layer = window.groups[name];
-            const checkbox = layersListLines.querySelector(`input[data-af="${name}"]`);
+  // Lida com camadas de Linhas (Alimentadores)
+  if (Array.isArray(visibleLayers) && window.order && layersListLines) {
+    window.order.forEach(name => {
+      const shouldBeVisible = visibleLayers.includes(name);
+      const layer = window.groups[name];
+      const checkbox = layersListLines.querySelector(`input[data-af="${name}"]`);
 
-            if (layer) {
-                if (shouldBeVisible && !map.hasLayer(layer)) {
-                    map.addLayer(layer);
-                } else if (!shouldBeVisible && map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                }
-            }
-            if (checkbox) {
-                checkbox.checked = shouldBeVisible;
-            }
-        });
-    }
+      if (layer) {
+        if (shouldBeVisible && !map.hasLayer(layer)) {
+          map.addLayer(layer);
+        } else if (!shouldBeVisible && map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      }
+      if (checkbox) {
+        checkbox.checked = shouldBeVisible;
+      }
+    });
+  }
 
-    // Lida com Grupos de Postos
-    if (Array.isArray(visiblePosts) && window.postOrder && layersListPosts) {
-        window.postOrder.forEach(name => {
-            const shouldBeVisible = visiblePosts.includes(name);
-            const layer = window.postGroups[name];
-            const checkbox = layersListPosts.querySelector(`input[data-pg="${name}"]`);
+  // Lida com Grupos de Postos
+  if (Array.isArray(visiblePosts) && window.postOrder && layersListPosts) {
+    window.postOrder.forEach(name => {
+      const shouldBeVisible = visiblePosts.includes(name);
+      const layer = window.postGroups[name];
+      const checkbox = layersListPosts.querySelector(`input[data-pg="${name}"]`);
 
-            if (layer) {
-                if (shouldBeVisible && !map.hasLayer(layer)) {
-                    map.addLayer(layer);
-                } else if (!shouldBeVisible && map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                }
-            }
-            if (checkbox) {
-                checkbox.checked = shouldBeVisible;
-            }
-        });
-    }
+      if (layer) {
+        if (shouldBeVisible && !map.hasLayer(layer)) {
+          map.addLayer(layer);
+        } else if (!shouldBeVisible && map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      }
+      if (checkbox) {
+        checkbox.checked = shouldBeVisible;
+      }
+    });
+  }
 
-    console.log('✅ Visibilidade das camadas restaurada.');
+  console.log('✅ Visibilidade das camadas restaurada.');
 }
 
 
@@ -581,86 +581,86 @@ function applyLayerVisibility(state) {
 
 // Obter últimos uploads do servidor
 async function getServerLastUploads(limit = 5) {
-    try {
-        const response = await timeoutFetch(`${API_CITIES}?action=last_uploads&limit=${limit}`);
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const data = await response.json();
-        if (data.ok && data.data) return data.data;
-        throw new Error('Resposta inválida');
-    } catch (error) {
-        console.warn('❌ Não foi possível obter últimos uploads:', error);
-        return [];
-    }
+  try {
+    const response = await timeoutFetch(`${API_CITIES}?action=last_uploads&limit=${limit}`);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (data.ok && data.data) return data.data;
+    throw new Error('Resposta inválida');
+  } catch (error) {
+    console.warn('❌ Não foi possível obter últimos uploads:', error);
+    return [];
+  }
 }
 
 // Obter último upload do servidor
 async function getServerLastUpload() {
-    try {
-        const response = await timeoutFetch(`${API_CITIES}?action=last_upload`);
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const data = await response.json();
-        if (data.ok && data.data) return data.data;
-        return null;
-    } catch (error) {
-        console.warn('❌ Não foi possível obter último upload:', error);
-        return null;
-    }
+  try {
+    const response = await timeoutFetch(`${API_CITIES}?action=last_upload`);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (data.ok && data.data) return data.data;
+    return null;
+  } catch (error) {
+    console.warn('❌ Não foi possível obter último upload:', error);
+    return null;
+  }
 }
 
 // Carregar último upload automaticamente
 async function loadLastUploadAuto() {
-    setStatus('🔄 Restaurando última sessão...');
-    showLoading(true, 'Restaurando última sessão');
-    
-    try {
-        const restoredState = restoreLastSession(); // Now returns the state object or null
-        if (restoredState) {
-            // If a session was restored, try to load the city associated with it
-            if (restoredState.cityId) {
-                await loadCityOnMap(restoredState.cityId);
-                showLoading(false);
-                return true;
-            }
-            showLoading(false);
-            return true;
-        }
-        
-        const serverUpload = await getServerLastUpload();
-        if (serverUpload) {
-            const success = await loadCachedUpload(
-                serverUpload.file_path, 
-                serverUpload.file_name, 
-                serverUpload.city_name,
-                true
-            );
-            if (success) {
-                await saveRecentUpload(serverUpload);
-                return true;
-            }
-        }
-        
-        const localUploads = getRecentUploads();
-        if (localUploads.length > 0) {
-            const success = await loadCachedUpload(
-                localUploads[0].file_path,
-                localUploads[0].file_name,
-                localUploads[0].city_name,
-                true
-            );
-            return success;
-        }
-        
-        // Nenhuma sessão ou arquivo encontrado
-        setStatus('💡 Nenhuma sessão anterior para carregar.');
-        return false;
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar último upload:', error);
-        setStatus('❌ Erro ao restaurar sessão');
-        return false;
-    } finally {
+  setStatus('🔄 Restaurando última sessão...');
+  showLoading(true, 'Restaurando última sessão');
+
+  try {
+    const restoredState = restoreLastSession(); // Now returns the state object or null
+    if (restoredState) {
+      // If a session was restored, try to load the city associated with it
+      if (restoredState.cityId) {
+        await loadCityOnMap(restoredState.cityId);
         showLoading(false);
+        return true;
+      }
+      showLoading(false);
+      return true;
     }
+
+    const serverUpload = await getServerLastUpload();
+    if (serverUpload) {
+      const success = await loadCachedUpload(
+        serverUpload.file_path,
+        serverUpload.file_name,
+        serverUpload.city_name,
+        true
+      );
+      if (success) {
+        await saveRecentUpload(serverUpload);
+        return true;
+      }
+    }
+
+    const localUploads = getRecentUploads();
+    if (localUploads.length > 0) {
+      const success = await loadCachedUpload(
+        localUploads[0].file_path,
+        localUploads[0].file_name,
+        localUploads[0].city_name,
+        true
+      );
+      return success;
+    }
+
+    // Nenhuma sessão ou arquivo encontrado
+    setStatus('💡 Nenhuma sessão anterior para carregar.');
+    return false;
+
+  } catch (error) {
+    console.error('❌ Erro ao carregar último upload:', error);
+    setStatus('❌ Erro ao restaurar sessão');
+    return false;
+  } finally {
+    showLoading(false);
+  }
 }
 
 /* ========================
@@ -669,63 +669,70 @@ async function loadLastUploadAuto() {
 
 // Upload com cache
 async function handleFileUploadWithCache(file, cityId = null, cityName = null) {
-    const isKmz = file.name.toLowerCase().endsWith('.kmz');
-    const cityHint = cityName || prettyCityFromFilename(file.name);
-    
-    setStatus(`📤 Enviando ${file.name}...`);
-    showLoading(true, `Enviando ${file.name}`);
-    
-    try {
-        const formData = new FormData();
-        
-        if (cityId) {
-            formData.append('action', 'upload');
-            formData.append('id', cityId);
-        } else {
-            formData.append('action', 'create');
-            formData.append('name', cityHint);
-        }
-        
-        formData.append('file', file);
-        
-        const response = await timeoutFetch(API_CITIES, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-        if (!result.ok) throw new Error(result.error || 'Erro no upload');
-        
-        // Salva no cache
-        const uploadInfo = {
-            city_id: result.data.id,
-            city_name: result.data.name,
-            file_name: file.name,
-            file_path: result.data.file?.url || `/uploads/cities/${result.data.id}/${file.name}`,
-            file_size: file.size,
-            file_type: file.name.split('.').pop().toLowerCase(),
-            uploaded_at: Date.now(),
-            placemarks_count: result.processing?.placemarks || 0,
-            server_response: result,
-            file_exists: true
-        };
-        
-        await saveRecentUpload(uploadInfo);
-        saveSessionState();
-        
-        setStatus(`✅ ${file.name} enviado e salvo no cache`);
-        return result;
-        
-    } catch (error) {
-        console.error('❌ Erro no upload:', error);
-        let errorMessage = `Erro ao enviar: ${error.message}`;
-        if (error.name === 'AbortError') errorMessage = 'Tempo esgotado';
-        setStatus(`❌ ${errorMessage}`);
-        throw error;
-    } finally {
-        showLoading(false);
+  const isKmz = file.name.toLowerCase().endsWith('.kmz');
+  const cityHint = cityName || prettyCityFromFilename(file.name);
+
+  setStatus(`📤 Enviando ${file.name}...`);
+  showLoading(true, `Enviando ${file.name}`);
+
+  try {
+    const formData = new FormData();
+
+    if (cityId) {
+      formData.append('action', 'upload');
+      formData.append('id', cityId);
+    } else {
+      // PREVIOUS: formData.append('action', 'create');
+      // PREVIOUS: formData.append('name', cityHint);
+
+      const customFolder = prompt("Nome da pasta para este upload (opcional, ENTER para automático):", "");
+      formData.append('action', 'create');
+      formData.append('name', cityHint);
+      if (customFolder) {
+        formData.append('custom_path', customFolder);
+      }
     }
+
+    formData.append('file', file);
+
+    const response = await timeoutFetch(API_CITIES, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error || 'Erro no upload');
+
+    // Salva no cache
+    const uploadInfo = {
+      city_id: result.data.id,
+      city_name: result.data.name,
+      file_name: file.name,
+      file_path: result.data.file?.url || `/uploads/cities/${result.data.id}/${file.name}`,
+      file_size: file.size,
+      file_type: file.name.split('.').pop().toLowerCase(),
+      uploaded_at: Date.now(),
+      placemarks_count: result.processing?.placemarks || 0,
+      server_response: result,
+      file_exists: true
+    };
+
+    await saveRecentUpload(uploadInfo);
+    saveSessionState();
+
+    setStatus(`✅ ${file.name} enviado e salvo no cache`);
+    return result;
+
+  } catch (error) {
+    console.error('❌ Erro no upload:', error);
+    let errorMessage = `Erro ao enviar: ${error.message}`;
+    if (error.name === 'AbortError') errorMessage = 'Tempo esgotado';
+    setStatus(`❌ ${errorMessage}`);
+    throw error;
+  } finally {
+    showLoading(false);
+  }
 }
 
 /* ========================
@@ -734,71 +741,71 @@ async function handleFileUploadWithCache(file, cityId = null, cityName = null) {
 
 // Carregar upload do cache
 async function loadCachedUpload(filePath, fileName, cityName, autoLoad = false) {
-    try {
-        setStatus(`🔄 Carregando ${fileName}...`);
-        if (!autoLoad) showLoading(true, `Carregando ${fileName}`);
-        
-        const fullPath = filePath.startsWith('/') ? filePath : `/uploads/cities/${filePath}`;
-        const response = await timeoutFetch(fullPath);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const isKmz = fileName.toLowerCase().endsWith('.kmz');
-        
-        if (isKmz) {
-            const blob = await response.blob();
-            const file = new File([blob], fileName, { 
-                type: 'application/vnd.google-earth.kmz' 
-            });
-            
-            if (typeof loadKMZ === 'function') {
-                await loadKMZ(file);
-            } else {
-                throw new Error('loadKMZ não disponível');
-            }
-        } else {
-            const text = await response.text();
-            if (typeof parseKML === 'function') {
-                await parseKML(text, cityName);
-            } else {
-                throw new Error('parseKML não disponível');
-            }
-        }
-        
-        if (currentFile) {
-            currentFile.textContent = `${fileName} (${cityName})`;
-        }
-        
-        // Atualiza cache
-        const uploads = getRecentUploads();
-        const currentUpload = uploads.find(u => u.file_name === fileName);
-        if (currentUpload) {
-            const filtered = uploads.filter(u => u.file_name !== fileName);
-            filtered.unshift({ 
-                ...currentUpload, 
-                uploaded_at: Date.now(),
-                last_loaded: Date.now()
-            });
-            localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
-        }
-        
-        saveSessionState();
-        setStatus(`✅ ${fileName} carregado`);
-        return true;
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar:', error);
-        if (!autoLoad) setStatus(`❌ Erro ao carregar ${fileName}`);
-        
-        // Remove do cache se erro
-        const uploads = getRecentUploads();
-        const filtered = uploads.filter(u => u.file_name !== fileName);
-        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
-        renderRecentUploadsPanel();
-        
-        return false;
-    } finally {
-        if (!autoLoad) showLoading(false);
+  try {
+    setStatus(`🔄 Carregando ${fileName}...`);
+    if (!autoLoad) showLoading(true, `Carregando ${fileName}`);
+
+    const fullPath = filePath.startsWith('/') ? filePath : `/uploads/cities/${filePath}`;
+    const response = await timeoutFetch(fullPath);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const isKmz = fileName.toLowerCase().endsWith('.kmz');
+
+    if (isKmz) {
+      const blob = await response.blob();
+      const file = new File([blob], fileName, {
+        type: 'application/vnd.google-earth.kmz'
+      });
+
+      if (typeof loadKMZ === 'function') {
+        await loadKMZ(file);
+      } else {
+        throw new Error('loadKMZ não disponível');
+      }
+    } else {
+      const text = await response.text();
+      if (typeof parseKML === 'function') {
+        await parseKML(text, cityName);
+      } else {
+        throw new Error('parseKML não disponível');
+      }
     }
+
+    if (currentFile) {
+      currentFile.textContent = `${fileName} (${cityName})`;
+    }
+
+    // Atualiza cache
+    const uploads = getRecentUploads();
+    const currentUpload = uploads.find(u => u.file_name === fileName);
+    if (currentUpload) {
+      const filtered = uploads.filter(u => u.file_name !== fileName);
+      filtered.unshift({
+        ...currentUpload,
+        uploaded_at: Date.now(),
+        last_loaded: Date.now()
+      });
+      localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
+    }
+
+    saveSessionState();
+    setStatus(`✅ ${fileName} carregado`);
+    return true;
+
+  } catch (error) {
+    console.error('❌ Erro ao carregar:', error);
+    if (!autoLoad) setStatus(`❌ Erro ao carregar ${fileName}`);
+
+    // Remove do cache se erro
+    const uploads = getRecentUploads();
+    const filtered = uploads.filter(u => u.file_name !== fileName);
+    localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(filtered));
+    renderRecentUploadsPanel();
+
+    return false;
+  } finally {
+    if (!autoLoad) showLoading(false);
+  }
 }
 
 /* ========================
@@ -807,15 +814,15 @@ async function loadCachedUpload(filePath, fileName, cityName, autoLoad = false) 
 
 // Renderizar painel de uploads
 function renderRecentUploadsPanel() {
-    const uploads = getRecentUploads();
-    if (uploads.length === 0) return;
-    
-    let panel = document.getElementById('recentUploadsPanel');
-    if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'recentUploadsPanel';
-        panel.className = 'panel-section';
-        panel.innerHTML = `
+  const uploads = getRecentUploads();
+  if (uploads.length === 0) return;
+
+  let panel = document.getElementById('recentUploadsPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'recentUploadsPanel';
+    panel.className = 'panel-section';
+    panel.innerHTML = `
             <h2>📁 Uploads Recentes</h2>
             <div class="cache-info">Últimos arquivos carregados</div>
             <div id="recentUploadsList" class="list-card"></div>
@@ -824,19 +831,19 @@ function renderRecentUploadsPanel() {
                 <button onclick="refreshUploadsCache()" class="btn link small">🔄 Atualizar</button>
             </div>
         `;
-        
-        const citiesSection = document.querySelector('.panel-section');
-        if (citiesSection) {
-            citiesSection.parentNode.insertBefore(panel, citiesSection.nextSibling);
-        }
+
+    const citiesSection = document.querySelector('.panel-section');
+    if (citiesSection) {
+      citiesSection.parentNode.insertBefore(panel, citiesSection.nextSibling);
     }
-    
-    const list = document.getElementById('recentUploadsList');
-    list.innerHTML = uploads.map((upload, index) => {
-        const timeAgo = getTimeAgo(upload.uploaded_at);
-        const isRecent = Date.now() - upload.uploaded_at < 24 * 60 * 60 * 1000;
-        
-        return `
+  }
+
+  const list = document.getElementById('recentUploadsList');
+  list.innerHTML = uploads.map((upload, index) => {
+    const timeAgo = getTimeAgo(upload.uploaded_at);
+    const isRecent = Date.now() - upload.uploaded_at < 24 * 60 * 60 * 1000;
+
+    return `
             <div class="city-item ${isRecent ? 'recent-upload' : ''}">
                 <div class="city-info">
                     <div class="city-name">
@@ -857,67 +864,67 @@ function renderRecentUploadsPanel() {
                 </button>
             </div>
         `;
-    }).join('');
+  }).join('');
 }
 
 // Limpar cache
 async function clearUploadsCache() { // Make it async
-    if (confirm('Limpar cache de uploads e dados do mapa?')) {
-        localStorage.removeItem(UPLOAD_CACHE_KEY);
-        localStorage.removeItem(LAST_SESSION_KEY);
-        localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear metadata from localStorage
-        await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY); // Clear lines from IndexedDB
-        await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY); // Clear markers from IndexedDB
-        await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY); // Clear polygons from IndexedDB
-        const panel = document.getElementById('recentUploadsPanel');
-        if (panel) panel.remove();
-        setStatus('🗑️ Cache limpo');
-    }
+  if (confirm('Limpar cache de uploads e dados do mapa?')) {
+    localStorage.removeItem(UPLOAD_CACHE_KEY);
+    localStorage.removeItem(LAST_SESSION_KEY);
+    localStorage.removeItem(LAST_PROCESSED_MAP_DATA_KEY); // Clear metadata from localStorage
+    await deleteFromDB(STORE_NAME_LINES, LAST_PROCESSED_MAP_LINES_KEY); // Clear lines from IndexedDB
+    await deleteFromDB(STORE_NAME_MARKERS, LAST_PROCESSED_MAP_MARKERS_KEY); // Clear markers from IndexedDB
+    await deleteFromDB(STORE_NAME_POLYGONS, LAST_PROCESSED_MAP_POLYGONS_KEY); // Clear polygons from IndexedDB
+    const panel = document.getElementById('recentUploadsPanel');
+    if (panel) panel.remove();
+    setStatus('🗑️ Cache limpo');
+  }
 }
 
 // Atualizar cache
 async function refreshUploadsCache() {
-    setStatus('🔄 Atualizando cache...');
-    try {
-        const serverUploads = await getServerLastUploads(10);
-        const localUploads = getRecentUploads();
-        const mergedUploads = [...serverUploads, ...localUploads];
-        
-        const uniqueUploads = [];
-        const seen = new Set();
-        mergedUploads.forEach(upload => {
-            const key = upload.file_path + upload.file_name;
-            if (!seen.has(key)) {
-                seen.add(key);
-                uniqueUploads.push(upload);
-            }
-        });
-        
-        uniqueUploads.sort((a, b) => (b.uploaded_at || 0) - (a.uploaded_at || 0));
-        const limited = uniqueUploads.slice(0, 5);
-        localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
-        renderRecentUploadsPanel();
-        setStatus(`✅ Cache atualizado (${limited.length} arquivos)`);
-        
-    } catch (error) {
-        console.error('❌ Erro ao atualizar cache:', error);
-        setStatus('❌ Erro ao atualizar cache');
-    }
+  setStatus('🔄 Atualizando cache...');
+  try {
+    const serverUploads = await getServerLastUploads(10);
+    const localUploads = getRecentUploads();
+    const mergedUploads = [...serverUploads, ...localUploads];
+
+    const uniqueUploads = [];
+    const seen = new Set();
+    mergedUploads.forEach(upload => {
+      const key = upload.file_path + upload.file_name;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueUploads.push(upload);
+      }
+    });
+
+    uniqueUploads.sort((a, b) => (b.uploaded_at || 0) - (a.uploaded_at || 0));
+    const limited = uniqueUploads.slice(0, 5);
+    localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(limited));
+    renderRecentUploadsPanel();
+    setStatus(`✅ Cache atualizado (${limited.length} arquivos)`);
+
+  } catch (error) {
+    console.error('❌ Erro ao atualizar cache:', error);
+    setStatus('❌ Erro ao atualizar cache');
+  }
 }
 
 // Helper para tempo
 function getTimeAgo(timestamp) {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (minutes < 1) return 'agora';
-    if (minutes < 60) return `${minutes} min atrás`;
-    if (hours < 24) return `${hours} h atrás`;
-    if (days < 7) return `${days} dia${days > 1 ? 's' : ''} atrás`;
-    return new Date(timestamp).toLocaleDateString('pt-BR');
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return `${minutes} min atrás`;
+  if (hours < 24) return `${hours} h atrás`;
+  if (days < 7) return `${days} dia${days > 1 ? 's' : ''} atrás`;
+  return new Date(timestamp).toLocaleDateString('pt-BR');
 }
 
 /* ========================
@@ -926,51 +933,51 @@ function getTimeAgo(timestamp) {
 
 // Inicializar sistema
 async function initializeCacheSystem() {
-    console.log('🚀 Iniciando sistema de cache...');
-    setupAutoSave();
-    
-    // Pede a localização do usuário ao iniciar, após um breve intervalo para o mapa inicializar
-    setTimeout(() => {
-        locateOnceAnimated();
-    }, 500);
-    
-    setTimeout(async () => {
-        const loadedFromProcessedCache = await loadProcessedMapData();
-        if (loadedFromProcessedCache) {
-            console.log('✅ Mapa carregado do cache de dados processados.');
-            return; // Exit if successfully loaded from processed cache
-        }
+  console.log('🚀 Iniciando sistema de cache...');
+  setupAutoSave();
 
-        const loaded = await loadLastUploadAuto();
-        if (!loaded) console.log('ℹ️ Nenhuma sessão anterior');
-    }, 1000);
-    
-    setTimeout(() => {
-        renderRecentUploadsPanel();
-        refreshUploadsCache().catch(console.error);
-    }, 2000);
-    
-    setInterval(() => {
-        refreshUploadsCache().catch(console.error);
-    }, 5 * 60 * 1000);
+  // Pede a localização do usuário ao iniciar, após um breve intervalo para o mapa inicializar
+  setTimeout(() => {
+    locateOnceAnimated();
+  }, 500);
+
+  setTimeout(async () => {
+    const loadedFromProcessedCache = await loadProcessedMapData();
+    if (loadedFromProcessedCache) {
+      console.log('✅ Mapa carregado do cache de dados processados.');
+      return; // Exit if successfully loaded from processed cache
+    }
+
+    const loaded = await loadLastUploadAuto();
+    if (!loaded) console.log('ℹ️ Nenhuma sessão anterior');
+  }, 1000);
+
+  setTimeout(() => {
+    renderRecentUploadsPanel();
+    refreshUploadsCache().catch(console.error);
+  }, 2000);
+
+  setInterval(() => {
+    refreshUploadsCache().catch(console.error);
+  }, 5 * 60 * 1000);
 }
 
 // Configurar salvamento automático
 function setupAutoSave() {
-    if (!map) return;
-    
-    let saveTimeout;
-    function scheduleSave() {
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(saveSessionState, 2000);
-    }
-    
-    map.on('moveend', scheduleSave);
-    map.on('zoomend', scheduleSave);
-    map.on('layeradd', scheduleSave);
-    map.on('layerremove', scheduleSave);
-    
-    window.addEventListener('beforeunload', saveSessionState);
+  if (!map) return;
+
+  let saveTimeout;
+  function scheduleSave() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(saveSessionState, 2000);
+  }
+
+  map.on('moveend', scheduleSave);
+  map.on('zoomend', scheduleSave);
+  map.on('layeradd', scheduleSave);
+  map.on('layerremove', scheduleSave);
+
+  window.addEventListener('beforeunload', saveSessionState);
 }
 
 /* ========================
@@ -981,63 +988,63 @@ function setupAutoSave() {
 let _cities = [];
 
 async function apiListCities() {
-    try {
-        const response = await timeoutFetch(`${API_CITIES}?action=list`);
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const data = await response.json();
-        if (!data.ok) throw new Error(data.error || 'Erro na API');
-        _cities = data.data || [];
-        return _cities;
-    } catch (error) {
-        console.error('❌ Erro ao listar cidades:', error);
-        throw error;
-    }
+  try {
+    const response = await timeoutFetch(`${API_CITIES}?action=list`);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || 'Erro na API');
+    _cities = data.data || [];
+    return _cities;
+  } catch (error) {
+    console.error('❌ Erro ao listar cidades:', error);
+    throw error;
+  }
 }
 
 async function loadCityOnMap(id) {
-    try {
-        const city = _cities.find(c => c.id === id);
-        if (!city) throw new Error('Cidade não encontrada');
-        if (!city.file || !city.file.url) throw new Error('Cidade sem arquivo');
-        
-        setStatus(`📥 Carregando ${city.name}...`);
-        showLoading(true, `Carregando ${city.name}`);
+  try {
+    const city = _cities.find(c => c.id === id);
+    if (!city) throw new Error('Cidade não encontrada');
+    if (!city.file || !city.file.url) throw new Error('Cidade sem arquivo');
 
-        window.currentCityId = id; // Set the current city ID
+    setStatus(`📥 Carregando ${city.name}...`);
+    showLoading(true, `Carregando ${city.name}`);
 
-        // Always use the original KMZ/KML as processedUrl is not available
-        console.log(`🐌 Carregando KMZ original para ${city.name}`);
-        await loadOriginalKMZ(city);
-        
-        if (currentFile) {
-            currentFile.textContent = `${city.file.name} (${city.name})`;
-        }
-        setStatus(`✅ ${city.name} carregada`);
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar cidade:', error);
-        setStatus(`❌ Erro: ${error.message}`);
-        throw error;
-    } finally {
-        showLoading(false);
+    window.currentCityId = id; // Set the current city ID
+
+    // Always use the original KMZ/KML as processedUrl is not available
+    console.log(`🐌 Carregando KMZ original para ${city.name}`);
+    await loadOriginalKMZ(city);
+
+    if (currentFile) {
+      currentFile.textContent = `${city.file.name} (${city.name})`;
     }
+    setStatus(`✅ ${city.name} carregada`);
+
+  } catch (error) {
+    console.error('❌ Erro ao carregar cidade:', error);
+    setStatus(`❌ Erro: ${error.message}`);
+    throw error;
+  } finally {
+    showLoading(false);
+  }
 }
 
 // Helper for the original loading method (fallback)
 async function loadOriginalKMZ(city) {
-    const url = city.file.url;
-    const isKmz = url.toLowerCase().endsWith('.kmz');
-    const response = await timeoutFetch(url);
-    if (!response.ok) throw new Error('Falha ao baixar arquivo original');
+  const url = city.file.url;
+  const isKmz = url.toLowerCase().endsWith('.kmz');
+  const response = await timeoutFetch(url);
+  if (!response.ok) throw new Error('Falha ao baixar arquivo original');
 
-    if (isKmz) {
-        const blob = await response.blob();
-        const file = new File([blob], city.file.name, { type: 'application/vnd.google-earth.kmz' });
-        await loadKMZ(file);
-    } else {
-        const text = await response.text();
-        await parseKML(text, city.name);
-    }
+  if (isKmz) {
+    const blob = await response.blob();
+    const file = new File([blob], city.file.name, { type: 'application/vnd.google-earth.kmz' });
+    await loadKMZ(file);
+  } else {
+    const text = await response.text();
+    await parseKML(text, city.name);
+  }
 }
 
 // New function to render the map from pre-processed JSON
@@ -1050,10 +1057,10 @@ async function renderFromProcessed(data, cityHint = "") {
 
   try {
     if (!data || !data.lines || !data.markers) {
-        throw new Error("Formato de dados processados inválido");
+      throw new Error("Formato de dados processados inválido");
     }
 
-    if (published) { try { map.removeLayer(published); } catch {} }
+    if (published) { try { map.removeLayer(published); } catch { } }
     // resetGroups(); // Removed redundant call, as loadProcessedMapData already calls it
 
     published = L.layerGroup().addTo(map);
@@ -1088,12 +1095,12 @@ async function renderFromProcessed(data, cityHint = "") {
       colors[grp] = color; // Repopulate the global colors object
 
       const poly = makeLODPolylineFromData(line.lods, { color, weight: LINE_BASE_W, opacity: 0.95 }, grp);
-      
+
       attachLineTooltip(poly, grp);
       groups[grp].addLayer(poly);
 
       const gb = (groupBounds[grp] ??= L.latLngBounds());
-      if(line.lods.fine && line.lods.fine.length > 0) {
+      if (line.lods.fine && line.lods.fine.length > 0) {
         line.lods.fine.forEach(([lt, lg]) => { gb.extend([lt, lg]); boundsLines.extend([lt, lg]); });
       }
       stats.lines++;
@@ -1105,7 +1112,7 @@ async function renderFromProcessed(data, cityHint = "") {
       const gName = markerData.group;
       const color = POST_COLORS[gName] || POST_COLORS.OUTROS;
 
-      if (!postGroups[gName]) { 
+      if (!postGroups[gName]) {
         postGroups[gName] = L.layerGroup(); // Correct: Initialize as L.layerGroup()
         published.addLayer(postGroups[gName]); // Add the layer group to the map
         // postOrder.push(gName); // Removed: postOrder is already populated by loadProcessedMapData
@@ -1114,28 +1121,28 @@ async function renderFromProcessed(data, cityHint = "") {
       const label = `<b>${markerData.name}</b>`;
       const code = markerData.code || markerData.name; // Fallback to name
       const extra = `<br><small>Alim:</small> <b>${markerData.extra.Alim || "—"}</b>`
-                  + (markerData.extra.Potência ? `<br><small>Potência:</small> <b>${markerData.extra.Potência}</b>` : ``)
-                  + `<br><small>Cód.:</small> <b>${code}</b>`;
+        + (markerData.extra.Potência ? `<br><small>Potência:</small> <b>${markerData.extra.Potência}</b>` : ``)
+        + `<br><small>Cód.:</small> <b>${code}</b>`;
 
       const marker = makePostMarker(lat, lng, color, label, extra);
       marker.setGroupName(markerData.extra.Alim);
 
       // Repopulate localIndex for search to work on reload
       localIndex.points.push({
-          name: markerData.name,
-          code: code,
-          lat: lat,
-          lon: lng
+        name: markerData.name,
+        code: code,
+        lat: lat,
+        lon: lng
       });
 
       allPostMarkers.push({ m: marker, lat, lng, text: markerData.name });
       postGroups[gName].addLayer(marker);
       stats.markers++;
     }
-    
-    if (allPostMarkers.length > 0) {
-        lod.keysContainer.addLayers(allPostMarkers.map(p => p.m));
-    }
+
+    // if (allPostMarkers.length > 0) {
+    //    lod.keysContainer.addLayers(allPostMarkers.map(p => p.m));
+    // }
 
     Object.entries(groupBounds).forEach(([name, bbox]) => {
       localIndex.groups.push({ name, lat: bbox.getCenter().lat, lon: bbox.getCenter().lng, bbox });
@@ -1147,7 +1154,7 @@ async function renderFromProcessed(data, cityHint = "") {
 
     if (boundsLines.isValid()) {
       map.fitBounds(boundsLines, { padding: [48, 48] });
-      if (map.getZoom() < MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      if (map.getZoom() > MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
     }
 
     updateLOD();
@@ -1182,30 +1189,30 @@ function saveCodes() {
   localStorage.setItem(LS_PREFIXSEQ, JSON.stringify(prefixSeq));
 }
 
-function stripAccents(s='') {
+function stripAccents(s = '') {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-function cityToPrefix(city='') {
-  const map = { 
-    'Belo Horizonte':'BHZ',
-    'São Paulo':'SAO',
-    'Rio De Janeiro':'RIO',
-    'Porto Alegre':'POA',
-    'Belo Horizonte - Mg':'BHZ' 
+function cityToPrefix(city = '') {
+  const map = {
+    'Belo Horizonte': 'BHZ',
+    'São Paulo': 'SAO',
+    'Rio De Janeiro': 'RIO',
+    'Porto Alegre': 'POA',
+    'Belo Horizonte - Mg': 'BHZ'
   };
-  const cTitle = (city||'').trim();
+  const cTitle = (city || '').trim();
   if (map[cTitle]) return map[cTitle];
-  const clean = stripAccents(cTitle).replace(/[^A-Za-z ]/g,'').trim();
+  const clean = stripAccents(cTitle).replace(/[^A-Za-z ]/g, '').trim();
   if (!clean) return 'GEN';
   const words = clean.split(/\s+/).filter(Boolean);
   let base = words[0] || clean;
   if (/^(Sao|Santo|Santa|Santana|Vila|Vila\/|Bom|Nova)$/i.test(base) && words[1]) base = words[1];
-  return base.slice(0,3).toUpperCase();
+  return base.slice(0, 3).toUpperCase();
 }
 
 const FEED_RE = /\b([A-Z]{2,6})\s*[-_:.\s]*0*([0-9]{1,4})\b/i;
-function pad2(n){ return String(n).padStart(2,'0'); }
+function pad2(n) { return String(n).padStart(2, '0'); }
 function extractFeedFromText(txt) {
   if (!txt) return null;
   const m = String(txt).toUpperCase().match(FEED_RE);
@@ -1235,10 +1242,10 @@ function detectPrefixFromTree(pm) {
 
 function prefixFromFilename(filename = "") {
   const base = filename.split("/").pop().replace(/\.[^.]+$/, "");
-  const clean = base.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z ]/g,'').trim();
+  const clean = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z ]/g, '').trim();
   if (!clean) return "GEN";
   const first = clean.split(/\s+/)[0] || clean;
-  return first.slice(0,3).toUpperCase();
+  return first.slice(0, 3).toUpperCase();
 }
 
 function getAlim(pm) {
@@ -1256,7 +1263,7 @@ function getAlim(pm) {
     const code = extractFeedFromText(fname);
     return code || fname.toUpperCase();
   }
-  const s = pm.querySelector("styleUrl")?.textContent?.replace("#","").trim();
+  const s = pm.querySelector("styleUrl")?.textContent?.replace("#", "").trim();
   if (s) {
     const code = extractFeedFromText(s);
     return code || s.toUpperCase();
@@ -1299,13 +1306,13 @@ function decideGroupForGeometry(pm, centroidLatLngOrNull, keyIndex) {
 
 function getOrCreateKeyCodeAuto(pm, lat, lng, filenameHint = "") {
   const feed = findFeedCodeInPlacemark(pm) || extractFeedFromText(getAlim(pm));
-  const prefix = feed ? feed.replace(/\d+$/, "") 
-                      : (detectPrefixFromTree(pm) || prefixFromFilename(filenameHint) || "GEN");
+  const prefix = feed ? feed.replace(/\d+$/, "")
+    : (detectPrefixFromTree(pm) || prefixFromFilename(filenameHint) || "GEN");
   const key = `${prefix}:${lat.toFixed(6)},${lng.toFixed(6)}`;
   if (keycodes[key]) return keycodes[key];
   const next = (prefixSeq[prefix] || 0) + 1;
   prefixSeq[prefix] = next;
-  const code = `${prefix}${String(next).padStart(2,'0')}`;
+  const code = `${prefix}${String(next).padStart(2, '0')}`;
   keycodes[key] = code;
   saveCodes();
   return code;
@@ -1375,21 +1382,21 @@ const draggableSidebar = {
     let isDragging = false;
     let startX = 0;
     let currentTranslate = 0;
-    
+
     const getEventX = (e) => e.touches ? e.touches[0].clientX : e.clientX;
 
     const onStart = (e) => {
       if (window.innerWidth > 768) return;
-      
+
       const x = getEventX(e);
       const sidebarWidth = sidebar.offsetWidth;
       const isOpen = sidebar.classList.contains('open');
-      
+
       // Drags must start on the sidebar if open, or on the edge of the screen if closed.
       if ((isOpen && x > sidebarWidth) || (!isOpen && x > 40)) {
         return;
       }
-      
+
       isDragging = true;
       startX = x;
       sidebar.style.transition = 'none'; // No animation while dragging
@@ -1401,7 +1408,7 @@ const draggableSidebar = {
       if (e.touches) {
         e.preventDefault(); // Prevent scroll on mobile
       }
-      
+
       const x = getEventX(e);
       const diffX = x - startX;
       const sidebarWidth = sidebar.offsetWidth;
@@ -1413,7 +1420,7 @@ const draggableSidebar = {
       } else {
         newTranslate = Math.max(-sidebarWidth, Math.min(0, -sidebarWidth + diffX));
       }
-      
+
       currentTranslate = newTranslate;
       sidebar.style.transform = `translateX(${newTranslate}px)`;
     };
@@ -1425,7 +1432,7 @@ const draggableSidebar = {
       const sidebarWidth = sidebar.offsetWidth;
       const threshold = sidebarWidth / 3;
 
-      sidebar.style.transition = ''; 
+      sidebar.style.transition = '';
       sidebar.style.transform = '';
       document.body.style.userSelect = '';
 
@@ -1440,18 +1447,18 @@ const draggableSidebar = {
       } else {
         // Was closed, check if we dragged enough to the right to open
         if (currentTranslate > -sidebarWidth + threshold) {
-           sidebar.classList.add('open');
-           document.body.classList.add('sidebar-open');
+          sidebar.classList.add('open');
+          document.body.classList.add('sidebar-open');
         }
       }
     };
-    
+
     // Mouse events
     document.addEventListener('mousedown', onStart);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('mouseleave', onEnd);
-    
+
     // Touch events
     document.addEventListener('touchstart', onStart, { passive: true });
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -1465,92 +1472,92 @@ const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 // Tolerances for the LOD pipeline, in increasing order of aggression.
 const LOD_TOLS = {
-    fine:   IS_MOBILE ? 15.0 : 8.0,
-    mid:    IS_MOBILE ? 30.0 : 15.0,
-    coarse: IS_MOBILE ? 60.0 : 35.0
+  fine: IS_MOBILE ? 15.0 : 8.0,
+  mid: IS_MOBILE ? 30.0 : 15.0,
+  coarse: IS_MOBILE ? 60.0 : 35.0
 };
 
 const MAX_POINTS_PER_GEOM = 800;
-const MIN_SKIP_M     = 2.0;
+const MIN_SKIP_M = 2.0;
 
-function toMetersProj(lat0){
-  const R = 6371000, toRad = d=>d*Math.PI/180, c0 = Math.cos(toRad(lat0));
-  return (lat,lng)=>({ x: R*toRad(lng)*c0, y: R*toRad(lat) });
+function toMetersProj(lat0) {
+  const R = 6371000, toRad = d => d * Math.PI / 180, c0 = Math.cos(toRad(lat0));
+  return (lat, lng) => ({ x: R * toRad(lng) * c0, y: R * toRad(lat) });
 }
-function rdpsSimplify(pointsXY, tol){
-  const tol2 = tol*tol;
+function rdpsSimplify(pointsXY, tol) {
+  const tol2 = tol * tol;
   const keep = new Uint8Array(pointsXY.length);
-  const stack = [[0, pointsXY.length-1]];
-  keep[0]=keep[keep.length-1]=1;
-  function segDist2(p,a,b){
-    const vx=b.x-a.x, vy=b.y-a.y;
-    const wx=p.x-a.x, wy=p.y-a.y;
-    const c1= vx*wx+vy*wy;
-    if (c1<=0) return (wx*wx+wy*wy);
-    const c2= vx*vx+vy*vy;
-    if (c2<=c1){ const dx=p.x-b.x, dy=p.y-b.y; return dx*dx+dy*dy; }
-    const t=c1/c2; const px=a.x+t*vx, py=a.y+t*vy;
-    const dx=p.x-px, dy=p.y-py; return dx*dx+dy*dy;
+  const stack = [[0, pointsXY.length - 1]];
+  keep[0] = keep[keep.length - 1] = 1;
+  function segDist2(p, a, b) {
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const wx = p.x - a.x, wy = p.y - a.y;
+    const c1 = vx * wx + vy * wy;
+    if (c1 <= 0) return (wx * wx + wy * wy);
+    const c2 = vx * vx + vy * vy;
+    if (c2 <= c1) { const dx = p.x - b.x, dy = p.y - b.y; return dx * dx + dy * dy; }
+    const t = c1 / c2; const px = a.x + t * vx, py = a.y + t * vy;
+    const dx = p.x - px, dy = p.y - py; return dx * dx + dy * dy;
   }
-  while(stack.length){
-    const [i,j] = stack.pop();
-    let maxD2=-1, idx=-1;
-    for(let k=i+1;k<j;k++){
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    let maxD2 = -1, idx = -1;
+    for (let k = i + 1; k < j; k++) {
       const d2 = segDist2(pointsXY[k], pointsXY[i], pointsXY[j]);
-      if (d2>maxD2){ maxD2=d2; idx=k; }
+      if (d2 > maxD2) { maxD2 = d2; idx = k; }
     }
-    if (maxD2>tol2 && idx>0){
-      keep[idx]=1;
-      stack.push([i,idx],[idx,j]);
+    if (maxD2 > tol2 && idx > 0) {
+      keep[idx] = 1;
+      stack.push([i, idx], [idx, j]);
     }
   }
-  const outIdx=[];
-  for(let k=0;k<keep.length;k++) if (keep[k]) outIdx.push(k);
+  const outIdx = [];
+  for (let k = 0; k < keep.length; k++) if (keep[k]) outIdx.push(k);
   return outIdx;
 }
-function simplifyPathMeters(coords, tolM = LOD_TOLS.fine){
+function simplifyPathMeters(coords, tolM = LOD_TOLS.fine) {
   if (!coords || coords.length <= 2) return coords || [];
   const out = [];
   let last = coords[0];
   out.push(last);
   const proj = toMetersProj(coords[0][0]);
   let lastXY = proj(last[0], last[1]);
-  for (let i=1;i<coords.length;i++){
+  for (let i = 1; i < coords.length; i++) {
     const c = coords[i];
     const xy = proj(c[0], c[1]);
     const dx = xy.x - lastXY.x, dy = xy.y - lastXY.y;
-    if (dx*dx + dy*dy >= MIN_SKIP_M*MIN_SKIP_M){
+    if (dx * dx + dy * dy >= MIN_SKIP_M * MIN_SKIP_M) {
       out.push(c); last = c; lastXY = xy;
     }
   }
-  if (out.length<=2) return out;
+  if (out.length <= 2) return out;
   const ptsXY = out.map(c => proj(c[0], c[1]));
   const keepIdx = rdpsSimplify(ptsXY, tolM);
   let simp = keepIdx.map(i => out[i]);
-  if (simp.length > MAX_POINTS_PER_GEOM){
+  if (simp.length > MAX_POINTS_PER_GEOM) {
     const step = Math.ceil(simp.length / MAX_POINTS_PER_GEOM);
     const slim = [];
-    for (let i=0;i<simp.length;i+=step) slim.push(simp[i]);
-    if (slim[slim.length-1] !== simp[simp.length-1]) slim.push(simp[simp.length-1]);
+    for (let i = 0; i < simp.length; i += step) slim.push(simp[i]);
+    if (slim[slim.length - 1] !== simp[simp.length - 1]) slim.push(simp[simp.length - 1]);
     simp = slim;
   }
   return simp;
 }
 
-function buildSimpLevels(coords){
+function buildSimpLevels(coords) {
   const fine = simplifyPathMeters(coords, LOD_TOLS.fine);
-  const mid  = simplifyPathMeters(fine,  LOD_TOLS.mid);
+  const mid = simplifyPathMeters(fine, LOD_TOLS.mid);
   const coarse = simplifyPathMeters(mid, LOD_TOLS.coarse);
   return { coarse, mid, fine };
 }
-function makeLODPolyline(coords, style, grpLabel){
+function makeLODPolyline(coords, style, grpLabel) {
   const levels = buildSimpLevels(coords);
   const poly = L.polyline(levels.coarse, {
     ...style,
     smoothFactor: 3,
     noClip: true,
-    updateWhenZooming: false,
-    renderer: fastRenderer
+    updateWhenZooming: false
+    // renderer: fastRenderer
   });
   poly.__label = grpLabel || '';
   poly.__levels = levels;
@@ -1559,25 +1566,25 @@ function makeLODPolyline(coords, style, grpLabel){
 }
 
 // New function to create a polyline from pre-calculated LOD data
-function makeLODPolylineFromData(lods, style, grpLabel){
+function makeLODPolylineFromData(lods, style, grpLabel) {
   const poly = L.polyline(lods.coarse, { // Use lods.coarse directly
     ...style,
     smoothFactor: 3,
     noClip: true,
-    updateWhenZooming: false,
-    renderer: fastRenderer
+    updateWhenZooming: false
+    // renderer: fastRenderer
   });
   poly.__label = grpLabel || '';
   poly.__levels = lods; // Use lods directly
   poly.__lodApplied = 'coarse';
   return poly;
 }
-function pickLevelForZoom(z){
+function pickLevelForZoom(z) {
   if (z < 13) return 'coarse';
   if (z < 15) return 'mid';
   return 'fine';
 }
-function nextIdle(){
+function nextIdle() {
   return new Promise(res => {
     if ('requestIdleCallback' in window) {
       requestIdleCallback(() => res(), { timeout: 32 });
@@ -1587,11 +1594,11 @@ function nextIdle(){
   });
 }
 
-const fastRenderer = L.canvas({ padding: 0.1 });
+// const fastRenderer = L.canvas({ padding: 0.1 });
 
 const map = L.map("map", {
   center: [-21.7947, -48.1780],
-  zoom: IS_MOBILE ? 17 : 16,
+  zoom: IS_MOBILE ? 14 : 16,
   maxZoom: IS_MOBILE ? 21 : 19,
   zoomControl: false,
   worldCopyJump: true,
@@ -1601,8 +1608,8 @@ const map = L.map("map", {
   fadeAnimation: false
 });
 
-function makeBaseController(map){
-  if(!map.getPane('labels')){
+function makeBaseController(map) {
+  if (!map.getPane('labels')) {
     map.createPane('labels');
     const p = map.getPane('labels');
     p.style.zIndex = 650;
@@ -1636,12 +1643,12 @@ function makeBaseController(map){
   let baseCur = 'osm';
   bases.osm.addTo(map);
 
-  function enableSatLabels(on){
+  function enableSatLabels(on) {
     const want = !!on;
     const hasL = map.hasLayer(labels.cartoLight);
     const hasT = map.hasLayer(labels.esriTrans);
     const hasP = map.hasLayer(labels.esriPlaces);
-    if (want){
+    if (want) {
       if (!hasL) labels.cartoLight.addTo(map);
       if (!hasT) labels.esriTrans.addTo(map);
       if (!hasP) labels.esriPlaces.addTo(map);
@@ -1652,7 +1659,7 @@ function makeBaseController(map){
     }
   }
 
-  function setBase(name){
+  function setBase(name) {
     if (!bases[name] || name === baseCur) return;
     if (map.hasLayer(bases[baseCur])) map.removeLayer(bases[baseCur]);
     bases[name].addTo(map);
@@ -1660,29 +1667,29 @@ function makeBaseController(map){
     baseCur = name;
   }
 
-  function wireButtons(){
+  function wireButtons() {
     const bSat = document.getElementById('toggleSatellite');
     const bTer = document.getElementById('toggleTerrain');
-    const bIn  = document.getElementById('zoomIn');
+    const bIn = document.getElementById('zoomIn');
     const bOut = document.getElementById('zoomOut');
     const bLoc = document.getElementById('locateMe');
 
     bSat?.addEventListener('click', () => setBase(baseCur !== 'sat' ? 'sat' : 'osm'));
     bTer?.addEventListener('click', () => setBase(baseCur !== 'terrain' ? 'terrain' : 'osm'));
-    bIn?.addEventListener('click',  () => map.zoomIn());
+    bIn?.addEventListener('click', () => map.zoomIn());
     bOut?.addEventListener('click', () => map.zoomOut());
     bLoc?.addEventListener('click', () => { window.locateOnceAnimated(); }); // Call global function
   }
 
-  return { setBase, wireButtons, get current(){ return baseCur; }, bases, labels };
+  return { setBase, wireButtons, get current() { return baseCur; }, bases, labels };
 }
 
 const baseCtl = makeBaseController(map);
 baseCtl.wireButtons();
 
-const searchForm  = $("#searchForm");
+const searchForm = $("#searchForm");
 const searchInput = $("#searchInput");
-const searchBtn   = $("#searchBtn");
+const searchBtn = $("#searchBtn");
 if (searchBtn) searchBtn.type = "button";
 
 let searchResults = document.getElementById("searchResults");
@@ -1698,14 +1705,14 @@ searchResults.style.overflowY = "auto";
 searchResults.style.display = "none";
 searchResults.style.zIndex = "9999";
 
-const norm   = (q) => q.trim().replace(/\s+/g, " ");
+const norm = (q) => q.trim().replace(/\s+/g, " ");
 const encode = (q) => encodeURIComponent(q);
 
 function positionResults() {
   if (!searchInput || !searchResults) return;
   const r = searchInput.getBoundingClientRect();
   searchResults.style.left = `${r.left}px`;
-  searchResults.style.top  = `${r.bottom + 4}px`;
+  searchResults.style.top = `${r.bottom + 4}px`;
   searchResults.style.width = `${r.width}px`;
 }
 window.addEventListener("resize", positionResults);
@@ -1771,7 +1778,7 @@ function searchLocal(qRaw, limit = 20) {
     }
   }
 
-  out.sort((a,b)=> (b._score||0) - (a._score||0));
+  out.sort((a, b) => (b._score || 0) - (a._score || 0));
   return out;
 }
 
@@ -1785,7 +1792,7 @@ function flyToLocal(item) {
   const z = Math.max(map.getZoom(), IS_MOBILE ? 18 : 15);
   map.flyTo([item.lat, item.lon], z, { duration: 0.9 });
   const temp = L.circleMarker([item.lat, item.lon], {
-    radius: 8, color: "#111", weight: 2, fillColor: "#4dabf7", fillOpacity: 1, renderer: fastRenderer
+    radius: 8, color: "#111", weight: 2, fillColor: "#4dabf7", fillOpacity: 1
   }).addTo(map);
   temp.bindPopup(
     `<div style="min-width:220px"><b>${item.name}</b>${item.desc ? `<br><small>${item.desc}</small>` : ""}<br><small>Lat: ${item.lat.toFixed(6)}, Lon: ${item.lon.toFixed(6)}</small></div>`
@@ -1840,7 +1847,7 @@ async function geocode(queryRaw) {
       })).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
       if (itemsOM.length) return itemsOM;
     }
-  } catch {}
+  } catch { }
   try {
     const r2 = await timeoutFetch(
       `https://geocode.maps.co/search?q=${qEnc}&limit=6`, {}, 10000
@@ -1856,7 +1863,7 @@ async function geocode(queryRaw) {
       })).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
       if (items.length) return items;
     }
-  } catch {}
+  } catch { }
   return [];
 }
 function rankResults(items) {
@@ -1874,8 +1881,8 @@ function rankResults(items) {
 }
 function flyToResult(it) {
   const z = it.type === "country" ? 6
-          : it.type === "state"   ? 8
-          : (it.type?.includes("city") || it.type === "PPL") ? 12 : 13;
+    : it.type === "state" ? 8
+      : (it.type?.includes("city") || it.type === "PPL") ? 12 : 13;
   map.flyTo([it.lat, it.lon], z, { duration: 0.9 });
   const temp = L.marker([it.lat, it.lon], {
     icon: L.divIcon({ className: "", html: '<div style="font-size:28px">📍</div>', iconSize: [0, 0] })
@@ -1904,14 +1911,14 @@ async function handleSearch(e) {
       const k = `point-${p.code || p.name}`;
       if (seen.has(k)) return;
       seen.add(k);
-      allItems.push({ 
-        kind: "point", 
-        icon: "📍", 
-        name: p.code || p.name, 
-        desc: (p.code && p.name !== p.code) ? p.name : ``, 
-        lat: p.lat, 
-        lon: p.lon, 
-        _score: 10 
+      allItems.push({
+        kind: "point",
+        icon: "📍",
+        name: p.code || p.name,
+        desc: (p.code && p.name !== p.code) ? p.name : ``,
+        lat: p.lat,
+        lon: p.lon,
+        _score: 10
       });
     });
 
@@ -1920,15 +1927,15 @@ async function handleSearch(e) {
       const k = `group-${g.name}`;
       if (seen.has(k)) return;
       seen.add(k);
-      allItems.push({ 
-        kind: "group", 
-        icon: "🗂️", 
-        name: g.name, 
-        desc: "Grupo/Alimentador", 
-        lat: g.lat, 
-        lon: g.lon, 
-        bbox: g.bbox, 
-        _score: 5 
+      allItems.push({
+        kind: "group",
+        icon: "🗂️",
+        name: g.name,
+        desc: "Grupo/Alimentador",
+        lat: g.lat,
+        lon: g.lon,
+        bbox: g.bbox,
+        _score: 5
       });
     });
 
@@ -1947,29 +1954,29 @@ async function handleSearch(e) {
   }
 
   // Lógica de busca original quando há texto no campo
-  if (!q || q.length < 2) { 
-    renderResults([]); 
-    return; 
+  if (!q || q.length < 2) {
+    renderResults([]);
+    return;
   }
   const local = searchLocal(q);
-  if (local.length === 1) { 
-    flyToLocal(local[0]); 
-    return; 
+  if (local.length === 1) {
+    flyToLocal(local[0]);
+    return;
   }
-  if (local.length > 1) { 
-    renderResults(local); 
-    setStatus(`Resultados no mapa para "${q}"`); 
-    return; 
+  if (local.length > 1) {
+    renderResults(local);
+    setStatus(`Resultados no mapa para "${q}"`);
+    return;
   }
-  
+
   setStatus(`Buscando "${q}"…`);
   showLoading(true, "Buscando localização…");
   try {
     const remote = rankResults(await geocode(q));
     showLoading(false);
-    if (remote.length === 1) { 
-      flyToResult(remote[0]); 
-      return; 
+    if (remote.length === 1) {
+      flyToResult(remote[0]);
+      return;
     }
     renderResults(remote);
     setStatus(remote.length ? `Resultados para "${q}"` : `Nada encontrado para "${q}"`);
@@ -1998,8 +2005,8 @@ searchInput?.addEventListener('input', () => {
 
 document.addEventListener("click", (e) => {
   const inside = searchResults.contains(e.target) ||
-                 searchInput?.contains(e.target) ||
-                 searchBtn?.contains(e.target);
+    searchInput?.contains(e.target) ||
+    searchBtn?.contains(e.target);
   if (!inside) {
     showResults(false);
     searchResults.innerHTML = "";
@@ -2008,23 +2015,23 @@ document.addEventListener("click", (e) => {
 
 /* ----------------- Publicação KML/KMZ ----------------- */
 const fileInput = $("#fileInput"),
-      dropZone = $("#dropZone"),
-      currentFile = $("#currentFile");
+  dropZone = $("#dropZone"),
+  currentFile = $("#currentFile");
 
 const layersListLines = $("#layersList") || null;
 const layersListPosts = $("#postsLayersList") || null;
 const hideAllBtn = $("#hideAllLayers"),
-      showAllBtn = $("#showAllLayers"),
-      hideAllPostsBtn = $("#hideAllPosts"),
-      showAllPostsBtn = $("#showAllPosts");
+  showAllBtn = $("#showAllLayers"),
+  hideAllPostsBtn = $("#hideAllPosts"),
+  showAllPostsBtn = $("#showAllPosts");
 
 const palette = [
-  "#1976d2","#4dabf7","#51cf66","#f59f00","#845ef7",
-  "#22b8cf","#e8590c","#a9e34b","#ff8787","#2f9e44",
-  "#f783ac","#20c997","#ffa94d","#94d82d","#66d9e8",
-  "#748ffc","#e599f7","#12b886","#e67700","#5c7cfa",
+  "#1976d2", "#4dabf7", "#51cf66", "#f59f00", "#845ef7",
+  "#22b8cf", "#e8590c", "#a9e34b", "#ff8787", "#2f9e44",
+  "#f783ac", "#20c997", "#ffa94d", "#94d82d", "#66d9e8",
+  "#748ffc", "#e599f7", "#12b886", "#e67700", "#5c7cfa",
 ];
-const POST_COLORS = { "FU": "#e03131", "FA": "#4f3b09", "RE": "#2f9e44", "KVA":"#845ef7", "OUTROS": "#868e96" };
+const POST_COLORS = { "FU": "#e03131", "FA": "#4f3b09", "RE": "#2f9e44", "KVA": "#845ef7", "OUTROS": "#868e96" };
 
 const groups = {}, colors = {}, order = [];
 const postGroups = {}, postOrder = [];
@@ -2035,24 +2042,24 @@ let routeLayer = null;
 const lod = { keysContainer: null, keysRawGroup: null, keysVisible: false, blockMarkersUntilZoom: false }; // CORREÇÃO: blockMarkersUntilZoom começa como false
 const hasCluster = typeof L.markerClusterGroup === "function";
 
-const highlight = { line:null, oldStyle:null, halo:null, markers:[] };
+const highlight = { line: null, oldStyle: null, halo: null, markers: [] };
 let allPostMarkers = [];
 
 const nextColor = (n) => colors[n] ?? (colors[n] = palette[pIdx++ % palette.length]);
 function resetGroups() {
   for (const name of Object.keys(groups)) {
-    try { map.removeLayer(groups[name]); } catch {}
+    try { map.removeLayer(groups[name]); } catch { }
     delete groups[name];
   }
   for (const gname of Object.keys(postGroups)) {
-    try { map.removeLayer(postGroups[gname]); } catch {}
+    try { map.removeLayer(postGroups[gname]); } catch { }
     delete postGroups[gname];
   }
-  if (lod.keysContainer) { try { map.removeLayer(lod.keysContainer); } catch {} }
-  if (lod.keysRawGroup)  { try { map.removeLayer(lod.keysRawGroup);  } catch {} }
+  if (lod.keysContainer) { try { map.removeLayer(lod.keysContainer); } catch { } }
+  if (lod.keysRawGroup) { try { map.removeLayer(lod.keysRawGroup); } catch { } }
   lod.keysContainer = null;
-  lod.keysRawGroup  = null;
-  lod.keysVisible   = false;
+  lod.keysRawGroup = null;
+  lod.keysVisible = false;
   lod.blockMarkersUntilZoom = false; // CORREÇÃO: Sempre false
 
   Object.keys(colors).forEach(k => delete colors[k]);
@@ -2062,7 +2069,7 @@ function resetGroups() {
   allPostMarkers = [];
 
   clearEmphasis();
-  
+
   // Força re-render dos painéis
   setTimeout(() => {
     renderLayersPanelLines();
@@ -2087,10 +2094,10 @@ function renderLayersPanelLines() {
     const color = colors[name];
     const row = document.createElement("label");
     row.className = "layer-item";
-    
+
     // Verifica se a camada está atualmente no mapa
     const isCurrentlyVisible = groups[name] && map.hasLayer(groups[name]);
-    
+
     row.innerHTML = `<input type="checkbox" ${isCurrentlyVisible ? 'checked' : ''} data-af="${name}"><span class="layer-color" style="background:${color}"></span><span class="layer-name">${name}</span>`;
     const cb = row.querySelector("input");
     cb.onchange = () => {
@@ -2113,24 +2120,24 @@ function renderLayersPanelPosts() {
     layersListPosts.innerHTML = `<div class="empty"><div class="empty-ico">📍</div><p>Nenhum posto</p></div>`;
     return;
   }
-  
+
   postOrder.forEach((gname) => {
     const color = POST_COLORS[gname] || POST_COLORS.OUTROS;
     const row = document.createElement("label");
     row.className = "layer-item";
-    
+
     // POR PADRÃO, TODOS OS GRUPOS DEVEM ESTAR SELECIONADOS
     // Garante que a camada está no mapa
     if (postGroups[gname] && !map.hasLayer(postGroups[gname])) {
       postGroups[gname].addTo(map);
     }
-    
+
     row.innerHTML = `
       <input type="checkbox" checked data-pg="${gname}">
       <span class="layer-color" style="background:${color}"></span>
       <span class="layer-name">${gname}</span>
     `;
-    
+
     const cb = row.querySelector("input");
     cb.onchange = () => {
       if (cb.checked) {
@@ -2150,7 +2157,7 @@ function renderLayersPanelPosts() {
         }
       }
     };
-    
+
     layersListPosts.appendChild(row);
   });
 }
@@ -2166,17 +2173,17 @@ function parseCoordBlock(txt) {
 
 // Helper to convert Leaflet LatLng objects (and nested arrays of them) to simple number arrays
 function mapLatLngsToArray(latLngs) {
-    if (!latLngs) return [];
-    if (Array.isArray(latLngs)) {
-        // If it's a nested array (e.g., for multi-polygons or holes)
-        if (Array.isArray(latLngs[0])) {
-            return latLngs.map(arr => mapLatLngsToArray(arr));
-        }
-        // If it's an array of LatLng objects
-        return latLngs.map(ll => [ll.lat, ll.lng]);
+  if (!latLngs) return [];
+  if (Array.isArray(latLngs)) {
+    // If it's a nested array (e.g., for multi-polygons or holes)
+    if (Array.isArray(latLngs[0])) {
+      return latLngs.map(arr => mapLatLngsToArray(arr));
     }
-    // Should not happen if always called with arrays from getLatLngs()
-    return [latLngs.lat, latLngs.lng];
+    // If it's an array of LatLng objects
+    return latLngs.map(ll => [ll.lat, ll.lng]);
+  }
+  // Should not happen if always called with arrays from getLatLngs()
+  return [latLngs.lat, latLngs.lng];
 }
 function getPotencia(pm) {
   for (const d of pm.querySelectorAll("ExtendedData Data")) {
@@ -2211,72 +2218,72 @@ function openGoogleMapsApp(lat, lng) {
   else location.href = web;
 }
 
-function haversine(a, b){
+function haversine(a, b) {
   const R = 6371000;
-  const toRad = (x)=> x*Math.PI/180;
-  const dLat = toRad(b.lat-a.lat);
-  const dLng = toRad(b.lng-a.lng);
-  const s1 = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
-  return 2*R*Math.asin(Math.sqrt(s1));
+  const toRad = (x) => x * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s1 = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s1));
 }
-function centroidLatLng(coords){
-  let lat=0, lng=0, n=coords.length;
-  coords.forEach(([lt,lg])=>{ lat+=lt; lng+=lg; });
-  return { lat: lat/n, lng: lng/n };
+function centroidLatLng(coords) {
+  let lat = 0, lng = 0, n = coords.length;
+  coords.forEach(([lt, lg]) => { lat += lt; lng += lg; });
+  return { lat: lat / n, lng: lng / n };
 }
-function nearestARA(keysArr, pt){
+function nearestARA(keysArr, pt) {
   let best = null, bd = Infinity;
-  for(const k of keysArr){
-    const d = haversine(pt, {lat:k.lat, lng:k.lng});
-    if (d < bd){ bd = d; best = k.code; }
+  for (const k of keysArr) {
+    const d = haversine(pt, { lat: k.lat, lng: k.lng });
+    if (d < bd) { bd = d; best = k.code; }
   }
   return { code: best, dist: bd };
 }
 
-function distPointToSegmentMeters(P, A, B){
+function distPointToSegmentMeters(P, A, B) {
   const toRad = d => d * Math.PI / 180;
   const R = 6371000;
   const lat0 = toRad(P.lat);
   const x = (lng, lat) => R * toRad(lng) * Math.cos(lat0);
-  const y = (lat)        => R * toRad(lat);
+  const y = (lat) => R * toRad(lat);
   const ax = x(A.lng, A.lat) - x(P.lng, P.lat);
   const ay = y(A.lat) - y(P.lat);
   const bx = x(B.lng, B.lat) - x(P.lng, P.lat);
   const by = y(B.lat) - y(P.lat);
   const vx = bx - ax, vy = by - ay;
-  const c1 = -(ax*vx + ay*vy);
+  const c1 = -(ax * vx + ay * vy);
   if (c1 <= 0) return Math.hypot(ax, ay);
-  const c2 = vx*vx + vy*vy;
+  const c2 = vx * vx + vy * vy;
   if (c2 <= c1) return Math.hypot(bx, by);
   const t = c1 / c2;
-  const px = ax + t*vx, py = ay + t*vy;
+  const px = ax + t * vx, py = ay + t * vy;
   return Math.hypot(px, py);
 }
-function minDistToPolylineMeters(latlng, poly){
+function minDistToPolylineMeters(latlng, poly) {
   const ll = poly.getLatLngs();
   const pts = Array.isArray(ll[0]) ? ll.flat() : ll;
   let min = Infinity;
-  for (let i=0; i<pts.length-1; i++){
+  for (let i = 0; i < pts.length - 1; i++) {
     const d = distPointToSegmentMeters(
-      {lat: latlng.lat, lng: latlng.lng},
-      {lat: pts[i].lat,   lng: pts[i].lng},
-      {lat: pts[i+1].lat, lng: pts[i+1].lng}
+      { lat: latlng.lat, lng: latlng.lng },
+      { lat: pts[i].lat, lng: pts[i].lng },
+      { lat: pts[i + 1].lat, lng: pts[i + 1].lng }
     );
     if (d < min) min = d;
   }
   return min;
 }
-function bufferForZoomMeters(z){
+function bufferForZoomMeters(z) {
   return Math.max(35, 250 * Math.pow(0.75, (z - 12)));
 }
 
-function normalizeGroupName(txt){
+function normalizeGroupName(txt) {
   if (!txt) return null;
   const code = extractFeedFromText(String(txt).toUpperCase());
   return code || String(txt).toUpperCase().trim();
 }
 
-function nearestPolylineInGroup(groupLayer, lat, lng){
+function nearestPolylineInGroup(groupLayer, lat, lng) {
   if (!groupLayer) return null;
   let best = null, bestD = Infinity;
   groupLayer.eachLayer(l => {
@@ -2288,7 +2295,7 @@ function nearestPolylineInGroup(groupLayer, lat, lng){
   return best;
 }
 
-function nearestPolylineGlobal(lat, lng){
+function nearestPolylineGlobal(lat, lng) {
   let best = null, bestD = Infinity;
   for (const gName of Object.keys(groups)) {
     const l = nearestPolylineInGroup(groups[gName], lat, lng);
@@ -2300,7 +2307,7 @@ function nearestPolylineGlobal(lat, lng){
   return best;
 }
 
-function emphasizeNearestLineFor(groupName, lat, lng){
+function emphasizeNearestLineFor(groupName, lat, lng) {
   const grp = groupName ? groups[normalizeGroupName(groupName)] : null;
   let target = null;
   if (grp) target = nearestPolylineInGroup(grp, lat, lng);
@@ -2308,7 +2315,7 @@ function emphasizeNearestLineFor(groupName, lat, lng){
   if (target) emphasizePolyline(target);
 }
 
-function guessGroupForPoint(pm, lat, lng, fallbackAlim){
+function guessGroupForPoint(pm, lat, lng, fallbackAlim) {
   const explicit = findFeedCodeInPlacemark(pm);
   if (explicit) return explicit;
   const asCode = extractFeedFromText(fallbackAlim);
@@ -2327,28 +2334,37 @@ function makePostMarker(lat, lng, color, labelHtml, extraHtml = "") {
     color: "#fff",
     fillColor: color,
     fillOpacity: 1,
-    renderer: fastRenderer,
+    renderer: null, // Let Leaflet decide (usually map.preferCanvas)
     updateWhenZooming: false
   });
   cm.__groupName = null;
   cm.setGroupName = (g) => { cm.__groupName = normalizeGroupName(g); };
-  cm.on("click", () => {
-    cm.bindPopup(`
-      <div style="padding:8px;min-width:230px">
-        ${labelHtml}${extraHtml}
-        <div style="margin-top:8px">
-          <button class="btn primary js-gmaps">Abrir no Google Maps (rota)</button>
-        </div>
-        <small style="color:#999;display:block;margin-top:6px">
-          Lat: ${lat.toFixed(6)}, Lon: ${lng.toFixed(6)}
-        </small>
+
+  // Bind popup immediately
+  cm.bindPopup(`
+    <div style="padding:8px;min-width:230px">
+      ${labelHtml}${extraHtml}
+      <div style="margin-top:8px">
+        <button class="btn primary js-gmaps">Abrir no Google Maps (rota)</button>
       </div>
-    `).openPopup();
+      <small style="color:#999;display:block;margin-top:6px">
+        Lat: ${lat.toFixed(6)}, Lon: ${lng.toFixed(6)}
+      </small>
+    </div>
+  `);
+
+  cm.on("click", () => {
+    // cm.openPopup(); // Handled by bindPopup check? No, bindPopup enables it.
+    // Ensure popup opens and emphasis happens
+    emphasizeNearestLineFor(cm.__groupName, lat, lng);
+  });
+
+  cm.on("popupopen", () => {
     cm.getPopup()?.getElement()
       ?.querySelector(".js-gmaps")
       ?.addEventListener("click", () => openGoogleMapsApp(lat, lng));
-    emphasizeNearestLineFor(cm.__groupName, lat, lng);
   });
+
   return cm;
 }
 
@@ -2370,15 +2386,15 @@ function updatePostLabels() {
     return cx + ':' + cy;
   };
   const center = map.getCenter();
-  const dist2 = (a,b)=> {
+  const dist2 = (a, b) => {
     const pa = map.latLngToContainerPoint([a.lat, a.lng]);
     const pb = map.latLngToContainerPoint([b.lat, b.lng]);
     const dx = pa.x - pb.x, dy = pa.y - pb.y;
-    return dx*dx + dy*dy;
+    return dx * dx + dy * dy;
   };
   const items = allPostMarkers
     .filter(it => bbox.contains([it.lat, it.lng]))
-    .sort((a,b)=> dist2(a, center) - dist2(b, center));
+    .sort((a, b) => dist2(a, center) - dist2(b, center));
   for (const it of items) {
     if (shown >= MAX_POST_LABELS) break;
     const cell = toCell(it.lat, it.lng);
@@ -2421,7 +2437,7 @@ function attachLineTooltip(poly, grpLabel) {
   };
   const closeLabel = () => poly.unbindTooltip();
   poly.on("mouseover", () => { if (map.getZoom() >= Z_LABELS_ON) openLabel(); });
-  poly.on("mouseout",  closeLabel);
+  poly.on("mouseout", closeLabel);
   poly.on("click", () => { openLabel(); emphasizePolyline(poly); });
   poly.on("touchstart", () => openLabel());
 }
@@ -2458,14 +2474,14 @@ function lineSignature(grp, coords) {
   const round5 = (n) => Math.round(n * 1e5) / 1e5;
   const sample = (arr, step = Math.ceil(arr.length / 8)) =>
     arr.filter((_, i) => i === 0 || i === arr.length - 1 || i % step === 0)
-       .map(([lt, lg]) => `${round5(lt)},${round5(lg)}`).join(';');
+      .map(([lt, lg]) => `${round5(lt)},${round5(lg)}`).join(';');
   const s1 = `${grp}|${sample(coords)}`;
   const s2 = `${grp}|${sample([...coords].reverse())}`;
   return s1 < s2 ? s1 : s2;
 }
 
 let _labelsScheduled = false, _labelsTimer = null;
-function scheduleUpdatePostLabels(){
+function scheduleUpdatePostLabels() {
   if (_labelsScheduled) return;
   _labelsScheduled = true;
   clearTimeout(_labelsTimer);
@@ -2480,46 +2496,46 @@ map.on("zoomstart", () => {
   for (const it of allPostMarkers) { if (it._labelOn) { it.m.unbindTooltip(); it._labelOn = false; } }
 });
 
-function clearEmphasis(){
-  if (highlight.line && highlight.oldStyle){
+function clearEmphasis() {
+  if (highlight.line && highlight.oldStyle) {
     try {
       highlight.line.unbindTooltip();
       highlight.line.setStyle(highlight.oldStyle).bringToBack();
-    } catch {}
+    } catch { }
   }
-  if (highlight.halo){ try { map.removeLayer(highlight.halo); } catch {} }
-  highlight.markers.forEach(({m, old})=>{
-    try { m.setStyle(old).setRadius(old.radius || 5).bringToBack(); } catch {}
+  if (highlight.halo) { try { map.removeLayer(highlight.halo); } catch { } }
+  highlight.markers.forEach(({ m, old }) => {
+    try { m.setStyle(old).setRadius(old.radius || 5).bringToBack(); } catch { }
   });
   highlight.line = highlight.oldStyle = highlight.halo = null;
   highlight.markers = [];
 }
-function emphasizePolyline(poly){
+function emphasizePolyline(poly) {
   clearEmphasis();
   const cur = poly.options || {};
   highlight.oldStyle = { color: cur.color, weight: cur.weight, opacity: cur.opacity, smoothFactor: cur.smoothFactor };
   highlight.line = poly;
   const coords = poly.getLatLngs();
   highlight.halo = L.polyline(coords, {
-    color: '#ffffff', weight: (cur.weight||3) + 10, opacity: 0.45, interactive: false, renderer: fastRenderer, updateWhenZooming: false
+    color: '#ffffff', weight: (cur.weight || 3) + 10, opacity: 0.45, interactive: false, updateWhenZooming: false
   }).addTo(map);
-  poly.setStyle({ color: '#ffd43b', weight: (cur.weight||3) + 4, opacity: 1 }).bringToFront();
+  poly.setStyle({ color: '#ffd43b', weight: (cur.weight || 3) + 4, opacity: 1 }).bringToFront();
   if (poly.__label) {
     poly.bindTooltip(poly.__label, { direction: "center", className: "line-label", sticky: true }).openTooltip();
   }
   const THRESH_M = bufferForZoomMeters(map.getZoom());
-  for (const it of allPostMarkers){
-    const d = minDistToPolylineMeters({lat: it.lat, lng: it.lng}, poly);
-    if (d <= THRESH_M){
+  for (const it of allPostMarkers) {
+    const d = minDistToPolylineMeters({ lat: it.lat, lng: it.lng }, poly);
+    if (d <= THRESH_M) {
       const old = { ...it.m.options, radius: it.m.options.radius };
       highlight.markers.push({ m: it.m, old });
-      it.m.setStyle({ color:'#000', weight:3, fillOpacity: 1 })
-          .setRadius(Math.max(8, (old.radius||5) + 3))
-          .bringToFront();
+      it.m.setStyle({ color: '#000', weight: 3, fillOpacity: 1 })
+        .setRadius(Math.max(8, (old.radius || 5) + 3))
+        .bringToFront();
     }
   }
 }
-map.on('click', (e)=>{
+map.on('click', (e) => {
   if (!(e.originalEvent?.target?.closest?.('.leaflet-interactive'))) clearEmphasis();
 });
 
@@ -2536,7 +2552,7 @@ async function parseKML(text, cityHint = "") {
     const xml = new DOMParser().parseFromString(text, "text/xml");
     if (xml.querySelector("parsererror")) throw new Error("XML inválido");
 
-    if (published) { try { map.removeLayer(published); } catch {} }
+    if (published) { try { map.removeLayer(published); } catch { } }
     resetGroups();
 
     published = L.layerGroup().addTo(map);
@@ -2594,12 +2610,12 @@ async function parseKML(text, cityHint = "") {
           const label = `<b>${rawName}</b>`;
           const alimDisplay = guessGroupForPoint(pm, lat, lng, alim);
           const extra = `<br><small>Alim:</small> <b>${alimDisplay || "—"}</b>`
-                      + (pot ? `<br><small>Potência:</small> <b>${pot}</b>` : ``)
-                      + `<br><small>Cód.:</small> <b>${autoCode}</b>`;
+            + (pot ? `<br><small>Potência:</small> <b>${pot}</b>` : ``)
+            + `<br><small>Cód.:</small> <b>${autoCode}</b>`;
           const marker = makePostMarker(lat, lng, color, label, extra);
           marker.setGroupName(gName); // FIX: Use the correct post group name
           allPostMarkers.push({ m: marker, lat, lng, text: rawName, code: autoCode });
-          lod.keysContainer.addLayer(marker);
+          // lod.keysContainer.addLayer(marker);
           postGroups[gName].addLayer(marker);
           stats.markers++;
         }
@@ -2648,7 +2664,7 @@ async function parseKML(text, cityHint = "") {
             const color = nextColor(grp);
             const p = L.polygon(coords, {
               color, weight: 2.5, fillColor: color, fillOpacity: 0.25,
-              updateWhenZooming: false, renderer: fastRenderer
+              updateWhenZooming: false
             });
             groups[grp].addLayer(p);
             stats.polygons++;
@@ -2681,7 +2697,7 @@ async function parseKML(text, cityHint = "") {
 
       // If all points are very close, don't zoom in too far.
       // Set a fixed zoom instead of fitting bounds.
-      if (distance < 50) { 
+      if (distance < 50) {
         map.flyTo(totalBounds.getCenter(), 16, { duration: 0.8 }); // Use flyTo for a smooth animation
       } else {
         map.fitBounds(totalBounds, { padding: [48, 48] });
@@ -2824,7 +2840,7 @@ hideAllPostsBtn?.addEventListener("click", () => {
     const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
     if (cb) cb.checked = false;
   });
-  
+
   // Também remove o container de markers
   if (lod.keysContainer && map.hasLayer(lod.keysContainer)) {
     map.removeLayer(lod.keysContainer);
@@ -2841,7 +2857,7 @@ showAllPostsBtn?.addEventListener("click", () => {
     const cb = layersListPosts?.querySelector(`input[data-pg="${gname}"]`);
     if (cb) cb.checked = true;
   });
-  
+
   // Garante que o container de markers também seja mostrado
   if (!lod.keysVisible && lod.keysContainer) {
     map.addLayer(lod.keysContainer);
@@ -2854,24 +2870,24 @@ showAllPostsBtn?.addEventListener("click", () => {
    ======================== */
 
 // Inicialização quando o DOM estiver pronto
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   console.log('🏁 Inicializando sistema completo com cache...');
-  
+
   // Aguarda o mapa estar pronto
   const checkMapReady = setInterval(() => {
     if (typeof map !== 'undefined' && map) {
       clearInterval(checkMapReady);
-      
+
       // Inicia o sistema de cache
       initializeCacheSystem();
-      
+
       // Carrega cidades
       apiListCities().catch(console.error);
-      
+
       console.log('✅ Sistema de cache inicializado');
     }
   }, 100);
-  
+
   // Timeout de segurança
   setTimeout(() => {
     clearInterval(checkMapReady);
