@@ -144,6 +144,21 @@ function get_cities_combined(): array {
     return $combined;
 }
 
+function rrmdir($dir) {
+    if (is_dir($dir)) {
+        $objects = scandir($dir);
+        foreach ($objects as $object) {
+            if ($object != "." && $object != "..") {
+                if (is_dir($dir . "/" . $object) && !is_link($dir . "/" . $object))
+                    rrmdir($dir . "/" . $object);
+                else
+                    unlink($dir . "/" . $object);
+            }
+        }
+        rmdir($dir);
+    }
+}
+
 // ======== CORS ========
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
@@ -167,6 +182,35 @@ try {
         $cities = get_cities_combined();
         
         json_response(['ok' => true, 'data' => $cities]);
+    }
+
+    // ---------- DELETAR CIDADE ----------
+    if ($method === 'POST' && $action === 'delete') {
+        $id = trim($_POST['id'] ?? '');
+        if (empty($id)) {
+            json_error('ID da cidade é obrigatório');
+        }
+
+        // Security: Prevent directory traversal
+        if (basename($id) !== $id) {
+            json_error('ID inválido', 400);
+        }
+
+        $city_dir = $UPLOAD_DIR . '/' . $id;
+
+        if (is_dir($city_dir)) {
+            rrmdir($city_dir);
+        }
+
+        // Remove from index
+        $index = load_index();
+        $new_index = array_filter($index, function($city) use ($id) {
+            return $city['id'] !== $id;
+        });
+
+        save_index($new_index);
+
+        json_response(['ok' => true, 'message' => 'Cidade excluída com sucesso']);
     }
 
     // ---------- OBTER CIDADE ESPECÍFICA ----------

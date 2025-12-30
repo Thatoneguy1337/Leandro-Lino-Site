@@ -333,6 +333,7 @@
                 <th style="width:20%">Prefixo</th>
                 <th style="width:25%">Arquivo</th>
                 <th style="width:15%" class="right">Ações</th>
+                <th style="width:15%" class="right">Excluir</th>
               </tr>
             </thead>
             <tbody id="cityList">
@@ -358,6 +359,11 @@
         <div class="row-actions">
           <button class="icon-link" data-act="load" title="Carregar no mapa">📥</button>
           <button class="icon-link" data-act="edit" title="Editar">✏️</button>
+        </div>
+      </td>
+      <td class="right">
+        <div class="row-actions">
+          <button class="icon-link" data-act="delete" title="Excluir">❌</button>
         </div>
       </td>
     </tr>
@@ -748,6 +754,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="assets/script.js?v=7"></script>
+  <script src="assets/city-manager.js"></script>
 </body>
 
 </html>
