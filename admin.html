@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="manifest" href="manifest.webmanifest?v=1">
-<link rel="icon" id="favicon" href="assets/icons/icon-192.png" type="image/png">
-<!-- iOS / iPadOS -->
-<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GeoViewer">
-<!-- Android/Chrome (opcional, ajuda no meta-theme) -->
-<meta name="theme-color" content="#0d6efd">
+  <link rel="icon" id="favicon" href="assets/icons/icon-192.png" type="image/png">
+  <!-- iOS / iPadOS -->
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GeoViewer">
+  <!-- Android/Chrome (opcional, ajuda no meta-theme) -->
+  <meta name="theme-color" content="#0d6efd">
   <title>Mapa Lino — Admin</title>
   <!-- Leaflet (CSS) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -20,6 +21,7 @@
   <!-- Favicon com id para ser atualizado junto da logo -->
   <link id="favicon" rel="icon" type="image/png" href="assets/img/image.png" />
 </head>
+
 <body>
 
   <!-- ========== SIDEBAR ESQUERDA (CONFIG / LISTAS) ========== -->
@@ -30,16 +32,10 @@
       <div class="brand">
         <!-- LOGO -->
         <div class="brand-logo-wrap">
-          <img id="brandLogo"
-               src="assets/img/image.png"
-               alt="Logo"
-               title="Clique para trocar (Shift+Clique restaura)"
-               tabindex="0" />
+          <img id="brandLogo" src="assets/img/image.png" alt="Logo" title="Clique para trocar (Shift+Clique restaura)"
+            tabindex="0" />
           <!-- mini-fab (USADO NO MOBILE) -->
-          <button id="changeLogoBtn"
-                  class="mini-fab"
-                  type="button"
-                  aria-label="Trocar logo"></button>
+          <button id="changeLogoBtn" class="mini-fab" type="button" aria-label="Trocar logo"></button>
         </div>
 
         <!-- TÍTULOS + BOTÃO INLINE (DESKTOP) -->
@@ -50,10 +46,7 @@
           </div>
 
           <!-- botão inline; clique faz o mesmo que o mini-fab -->
-          <button id="changeLogoBtnInline"
-                  class="brand-inline-btn"
-                  type="button"
-                  aria-label="Trocar logo">
+          <button id="changeLogoBtnInline" class="brand-inline-btn" type="button" aria-label="Trocar logo">
             Trocar logo
           </button>
         </div>
@@ -83,9 +76,15 @@
               <span class="drop-zone-text">Clique para selecionar</span>
               <small class="drop-zone-info">ou arraste e solte o arquivo</small>
             </label>
+
+          </div>
+          <div class="row" style="margin-top: .75rem;">
+            <input type="text" id="sidebarKmzFolderName" class="input-flat" placeholder="Nome da pasta (opcional)"
+              style="width:100%;" />
           </div>
           <div class="row" style="margin-top:.75rem">
-            <button type="submit" class="btn primary" style="width: 100%; justify-content: center;">Enviar Arquivo</button>
+            <button type="submit" class="btn primary" style="width: 100%; justify-content: center;">Enviar
+              Arquivo</button>
           </div>
           <div id="sidebarKmzUploadStatus" class="form-status" style="margin-top: 0.75rem;"></div>
         </form>
@@ -97,7 +96,7 @@
 
         <label class="home-msg-label" for="homeMsgText">Conteúdo</label>
         <textarea id="homeMsgText" class="home-msg-textarea"
-                  placeholder="Escreva a mensagem que aparecerá na home…"></textarea>
+          placeholder="Escreva a mensagem que aparecerá na home…"></textarea>
 
         <div class="row gap" style="margin-top:.5rem">
           <button id="btnHomeMsgSave" class="home-msg-save">Salvar mensagem</button>
@@ -180,15 +179,18 @@
 
     <div class="top-center" role="search">
       <form id="searchForm" class="search" autocomplete="off">
-        <input id="searchInput" type="search" placeholder="Buscar local, bairro, cidade..." aria-label="Buscar localização" />
+        <input id="searchInput" type="search" placeholder="Buscar local, bairro, cidade..."
+          aria-label="Buscar localização" />
         <button id="searchBtn" type="submit" class="icon-btn" aria-label="Buscar">🔎</button>
       </form>
       <div id="searchResults" class="search-results" role="listbox" aria-label="Resultados de busca"></div>
     </div>
 
     <div class="top-right" aria-label="Acessibilidade" role="group">
-      <button id="openCities" class="icon-btn" title="Cidades & Arquivos" aria-label="Gerenciar cidades e arquivos">🏙️</button>
-      <button id="themeToggle" class="icon-btn" title="Modo escuro" aria-pressed="false" aria-label="Alternar tema">🌙</button>
+      <button id="openCities" class="icon-btn" title="Cidades & Arquivos"
+        aria-label="Gerenciar cidades e arquivos">🏙️</button>
+      <button id="themeToggle" class="icon-btn" title="Modo escuro" aria-pressed="false"
+        aria-label="Alternar tema">🌙</button>
     </div>
   </header>
 
@@ -230,7 +232,7 @@
     <div class="developer-credit">
       <small>
         <strong>Desenvolvido por</strong>
-         Leandro Lino © 2025
+        Leandro Lino © 2025
       </small>
     </div>
 
@@ -281,8 +283,8 @@
         </label>
 
         <div class="row gap">
-          <button id="btnCityNew"    type="button" class="btn">Novo</button>
-          <button id="btnCitySave"   type="submit" class="btn primary">Salvar</button>
+          <button id="btnCityNew" type="button" class="btn">Novo</button>
+          <button id="btnCitySave" type="submit" class="btn primary">Salvar</button>
           <button id="btnCityDelete" type="button" class="btn danger">Excluir</button>
         </div>
 
@@ -300,6 +302,12 @@
         <label class="field">
           <span>Arquivo KMZ</span>
           <input id="kmzFileInput" type="file" accept=".kmz" required />
+        </label>
+
+        <label class="field">
+          <span>Nome da Pasta (Opcional)</span>
+          <input id="kmzFolderNameInput" type="text" placeholder="Ex.: MinhaNovaCidade" />
+          <small class="muted">Se deixar em branco, será gerado um ID automático.</small>
         </label>
 
         <div class="row gap">
@@ -393,25 +401,25 @@
   <script>
     const ADMIN_MESSAGE_TOKEN = 'troque-este-token-seguro';
 
-    async function adminLoadHomeMessage(){
-      try{
-        const r = await fetch('api/message.php', { cache:'no-store' });
+    async function adminLoadHomeMessage() {
+      try {
+        const r = await fetch('api/message.php', { cache: 'no-store' });
         const j = await r.json();
         const txt = (j?.data?.text || '');
         const ta = document.getElementById('homeMsgText');
         const prev = document.getElementById('homeMsgPreview');
         if (ta) ta.value = txt;
-        if (prev) prev.innerHTML = txt.replace(/\n/g,'<br>');
-      }catch(e){}
+        if (prev) prev.innerHTML = txt.replace(/\n/g, '<br>');
+      } catch (e) { }
     }
 
-    async function adminSaveHomeMessage(){
+    async function adminSaveHomeMessage() {
       const ta = document.getElementById('homeMsgText');
       const st = document.getElementById('homeMsgStatus');
       const prev = document.getElementById('homeMsgPreview');
       const text = (ta?.value || '').trim();
 
-      try{
+      try {
         if (st) st.textContent = 'Salvando…';
         const r = await fetch('api/message.php', {
           method: 'POST',
@@ -422,312 +430,318 @@
           body: JSON.stringify({ text })
         });
         const j = await r.json();
-        if (!j.ok) throw new Error(j.error||'Falha ao salvar');
+        if (!j.ok) throw new Error(j.error || 'Falha ao salvar');
         if (st) st.textContent = '✅ Mensagem salva';
-        if (prev) prev.innerHTML = text.replace(/\n/g,'<br>');
-      }catch(err){
-        if (st) st.textContent = '❌ ' + (err.message||'Erro');
-      }finally{
-        setTimeout(()=> { if (st) st.textContent=''; }, 2500);
+        if (prev) prev.innerHTML = text.replace(/\n/g, '<br>');
+      } catch (err) {
+        if (st) st.textContent = '❌ ' + (err.message || 'Erro');
+      } finally {
+        setTimeout(() => { if (st) st.textContent = ''; }, 2500);
       }
     }
 
     document.getElementById('btnHomeMsgSave')?.addEventListener('click', adminSaveHomeMessage);
-    document.getElementById('homeMsgText')?.addEventListener('input', (e)=>{
+    document.getElementById('homeMsgText')?.addEventListener('input', (e) => {
       const prev = document.getElementById('homeMsgPreview');
-      if (prev) prev.innerHTML = (e.target.value||'').replace(/\n/g,'<br>');
+      if (prev) prev.innerHTML = (e.target.value || '').replace(/\n/g, '<br>');
     });
   </script>
 
   <!-- ====== LOGO: upload no SERVIDOR (PHP) + restaurar padrão ====== -->
   <script>
-  (async function () {
-    const DEFAULT_LOGO = 'assets/img/image.png';
-    const UPLOAD_URL = 'api/upload_logo.php';
-    const LATEST_LOGO_URL = 'api/latest_logo.php';
+    (async function () {
+      const DEFAULT_LOGO = 'assets/img/image.png';
+      const UPLOAD_URL = 'api/upload_logo.php';
+      const LATEST_LOGO_URL = 'api/latest_logo.php';
 
-    const img = document.getElementById('brandLogo');
-    const imgTop = document.getElementById('brandLogoTop');
-    const loadingLogo = document.getElementById('loadingLogo');
-    const favicon = document.getElementById('favicon');
-    const fileInput = document.getElementById('logoFileInput');
-    const btnFab = document.getElementById('changeLogoBtn');
-    const btnInline = document.getElementById('changeLogoBtnInline');
+      const img = document.getElementById('brandLogo');
+      const imgTop = document.getElementById('brandLogoTop');
+      const loadingLogo = document.getElementById('loadingLogo');
+      const favicon = document.getElementById('favicon');
+      const fileInput = document.getElementById('logoFileInput');
+      const btnFab = document.getElementById('changeLogoBtn');
+      const btnInline = document.getElementById('changeLogoBtnInline');
 
-    function applyLogo(src) {
-      // Adiciona um cache-bust para garantir que a imagem seja recarregada
-      const finalSrc = src + '?' + Date.now();
-      if (img) img.src = finalSrc;
-      if (imgTop) imgTop.src = finalSrc;
-      if (loadingLogo) loadingLogo.src = finalSrc;
-      if (favicon) favicon.href = finalSrc;
-    }
+      function applyLogo(src) {
+        // Adiciona um cache-bust para garantir que a imagem seja recarregada
+        const finalSrc = src + '?' + Date.now();
+        if (img) img.src = finalSrc;
+        if (imgTop) imgTop.src = finalSrc;
+        if (loadingLogo) loadingLogo.src = finalSrc;
+        if (favicon) favicon.href = finalSrc;
+      }
 
-    async function loadLatestLogo() {
-      try {
-        const res = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
-        const data = await res.json();
-        if (data.ok && data.logoUrl) {
-          applyLogo(data.logoUrl);
-        } else {
+      async function loadLatestLogo() {
+        try {
+          const res = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
+          const data = await res.json();
+          if (data.ok && data.logoUrl) {
+            applyLogo(data.logoUrl);
+          } else {
+            applyLogo(DEFAULT_LOGO);
+          }
+        } catch {
           applyLogo(DEFAULT_LOGO);
         }
-      } catch {
-        applyLogo(DEFAULT_LOGO);
       }
-    }
 
-    async function uploadLogo(file) {
-      const fd = new FormData();
-      fd.append('logo', file);
+      async function uploadLogo(file) {
+        const fd = new FormData();
+        fd.append('logo', file);
 
-      try {
-        const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
-        const j = await resp.json();
-        if (!j.ok || !j.logoUrl) throw new Error(j.error || 'Falha no upload');
-        
-        // Usa a URL retornada diretamente pelo servidor
-        applyLogo(j.logoUrl);
-        alert('✅ Logo atualizada com sucesso!');
-      } catch (err) {
-        alert('❌ Erro ao enviar: ' + err.message);
-      }
-    }
+        try {
+          const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
+          const j = await resp.json();
+          if (!j.ok || !j.logoUrl) throw new Error(j.error || 'Falha no upload');
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadLatestLogo();
-      adminLoadHomeMessage();
-      if (typeof renderRecentUploadsPanel === 'function') {
-        renderRecentUploadsPanel();
-      }
-    });
-
-    // Clique na logo (Shift = restaurar p/ padrão local)
-    img?.addEventListener('click', async (ev) => {
-      if (ev.shiftKey) {
-        if (confirm('Restaurar visualmente para a logo padrão (sem apagar do servidor)?')) {
-          applyLogo(DEFAULT_LOGO);
+          // Usa a URL retornada diretamente pelo servidor
+          applyLogo(j.logoUrl);
+          alert('✅ Logo atualizada com sucesso!');
+        } catch (err) {
+          alert('❌ Erro ao enviar: ' + err.message);
         }
-        return;
       }
-      fileInput?.click();
-    });
 
-    // Acessibilidade: Enter/Espaço abre upload
-    img?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
+      document.addEventListener('DOMContentLoaded', () => {
+        loadLatestLogo();
+        adminLoadHomeMessage();
+        if (typeof renderRecentUploadsPanel === 'function') {
+          renderRecentUploadsPanel();
+        }
+      });
+
+      // Clique na logo (Shift = restaurar p/ padrão local)
+      img?.addEventListener('click', async (ev) => {
+        if (ev.shiftKey) {
+          if (confirm('Restaurar visualmente para a logo padrão (sem apagar do servidor)?')) {
+            applyLogo(DEFAULT_LOGO);
+          }
+          return;
+        }
         fileInput?.click();
-      }
-    });
+      });
 
-    // Botões que chamam o mesmo input
-    btnFab?.addEventListener('click', () => fileInput?.click());
-    btnInline?.addEventListener('click', () => fileInput?.click());
+      // Acessibilidade: Enter/Espaço abre upload
+      img?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          fileInput?.click();
+        }
+      });
 
-    // Upload -> PHP
-    fileInput?.addEventListener('change', (ev) => {
-      const file = ev.target.files?.[0];
-      if (!file) return;
+      // Botões que chamam o mesmo input
+      btnFab?.addEventListener('click', () => fileInput?.click());
+      btnInline?.addEventListener('click', () => fileInput?.click());
 
-      if (!file.type.startsWith('image/')) {
-        alert('Selecione uma imagem (PNG, JPG, WEBP, GIF, SVG).');
+      // Upload -> PHP
+      fileInput?.addEventListener('change', (ev) => {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+          alert('Selecione uma imagem (PNG, JPG, WEBP, GIF, SVG).');
+          ev.target.value = '';
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          alert('Imagem muito grande (máx. 2 MB).');
+          ev.target.value = '';
+          return;
+        }
+
+        uploadLogo(file);
         ev.target.value = '';
-        return;
-      }
-      if (file.size > 2 * 1024 * 1024) {
-        alert('Imagem muito grande (máx. 2 MB).');
-        ev.target.value = '';
-        return;
-      }
-
-      uploadLogo(file);
-      ev.target.value = '';
-    });
-  })();
+      });
+    })();
   </script>
 
   <!-- ====== UPLOAD DE KMZ AVULSO ====== -->
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const kmzUploadForm = document.getElementById('kmzUploadForm');
-    if (!kmzUploadForm) return;
+    document.addEventListener('DOMContentLoaded', () => {
+      const kmzUploadForm = document.getElementById('kmzUploadForm');
+      if (!kmzUploadForm) return;
 
-    const kmzFileInput = document.getElementById('kmzFileInput');
-    const kmzUploadStatus = document.getElementById('kmzUploadStatus');
+      const kmzFileInput = document.getElementById('kmzFileInput');
+      const kmzUploadStatus = document.getElementById('kmzUploadStatus');
 
-    kmzUploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!kmzFileInput.files || kmzFileInput.files.length === 0) {
-        kmzUploadStatus.textContent = 'Por favor, selecione um arquivo.';
-        kmzUploadStatus.className = 'form-status error';
-        return;
-      }
-
-      const file = kmzFileInput.files[0];
-      const formData = new FormData();
-      formData.append('action', 'upload_standalone_kmz');
-      formData.append('kmz_file', file);
-
-      kmzUploadStatus.textContent = 'Enviando arquivo...';
-      kmzUploadStatus.className = 'form-status info';
-
-      try {
-        const response = await fetch('api/cities.php', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.ok) {
-          kmzUploadStatus.textContent = `✅ Sucesso! Arquivo salvo em: ${result.path}`;
-          kmzUploadStatus.className = 'form-status success';
-          kmzUploadForm.reset(); // Limpa o campo de arquivo
-
-          // Integração com o painel de uploads recentes
-          if (typeof saveRecentUpload === 'function' && typeof renderRecentUploadsPanel === 'function') {
-            const uploadInfo = {
-              city_name: 'Arquivo Avulso',
-              file_name: file.name,
-              file_path: result.path,
-              file_size: file.size,
-              uploaded_at: Date.now(),
-            };
-            saveRecentUpload(uploadInfo);
-            renderRecentUploadsPanel();
-          }
-        } else {
-          throw new Error(result.error || 'Erro desconhecido no servidor.');
+      kmzUploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!kmzFileInput.files || kmzFileInput.files.length === 0) {
+          kmzUploadStatus.textContent = 'Por favor, selecione um arquivo.';
+          kmzUploadStatus.className = 'form-status error';
+          return;
         }
-      } catch (error) {
-        kmzUploadStatus.textContent = `❌ Erro: ${error.message}`;
-        kmzUploadStatus.className = 'form-status error';
-      }
+
+        const file = kmzFileInput.files[0];
+        const folderNameVal = document.getElementById('kmzFolderNameInput')?.value || '';
+
+        const formData = new FormData();
+        formData.append('action', 'upload_standalone_kmz');
+        formData.append('kmz_file', file);
+        formData.append('folder_name', folderNameVal);
+
+        kmzUploadStatus.textContent = 'Enviando arquivo...';
+        kmzUploadStatus.className = 'form-status info';
+
+        try {
+          const response = await fetch('api/cities.php', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.ok) {
+            kmzUploadStatus.textContent = `✅ Sucesso! Arquivo salvo em: ${result.path}`;
+            kmzUploadStatus.className = 'form-status success';
+            kmzUploadForm.reset(); // Limpa o campo de arquivo
+
+            // Integração com o painel de uploads recentes
+            if (typeof saveRecentUpload === 'function' && typeof renderRecentUploadsPanel === 'function') {
+              const uploadInfo = {
+                city_name: folderNameVal || 'Arquivo Avulso',
+                file_name: file.name,
+                file_path: result.path,
+                file_size: file.size,
+                uploaded_at: Date.now(),
+              };
+              saveRecentUpload(uploadInfo);
+              renderRecentUploadsPanel();
+            }
+          } else {
+            throw new Error(result.error || 'Erro desconhecido no servidor.');
+          }
+        } catch (error) {
+          kmzUploadStatus.textContent = `❌ Erro: ${error.message}`;
+          kmzUploadStatus.className = 'form-status error';
+        }
+      });
     });
-  });
   </script>
 
   <!-- ====== UPLOAD DE KMZ NA SIDEBAR ====== -->
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const sidebarKmzUploadForm = document.getElementById('sidebarKmzUploadForm');
-    if (!sidebarKmzUploadForm) return;
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebarKmzUploadForm = document.getElementById('sidebarKmzUploadForm');
+      if (!sidebarKmzUploadForm) return;
 
-    const kmzFileInput = document.getElementById('sidebarKmzFileInput');
-    const kmzUploadStatus = document.getElementById('sidebarKmzUploadStatus');
-    const dropZone = document.getElementById('kmzDropZone');
-    const dropZoneText = dropZone.querySelector('.drop-zone-text');
-    const dropZoneIcon = dropZone.querySelector('.drop-zone-icon');
+      const kmzFileInput = document.getElementById('sidebarKmzFileInput');
+      const kmzUploadStatus = document.getElementById('sidebarKmzUploadStatus');
+      const dropZone = document.getElementById('kmzDropZone');
+      const dropZoneText = dropZone.querySelector('.drop-zone-text');
+      const dropZoneIcon = dropZone.querySelector('.drop-zone-icon');
 
-    // Prevent default drag behaviors
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }, false);
-    });
-    
-    // Highlight drop zone when item is dragged over it
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropZone.addEventListener(eventName, () => {
-        dropZone.classList.add('drag-over');
-      }, false);
-    });
+      // Prevent default drag behaviors
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }, false);
+      });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, () => {
-        dropZone.classList.remove('drag-over');
-      }, false);
-    });
+      // Highlight drop zone when item is dragged over it
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+          dropZone.classList.add('drag-over');
+        }, false);
+      });
 
-    // Handle dropped files
-    dropZone.addEventListener('drop', (e) => {
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        // Ensure only KMZ files are accepted
-        if (files[0].name.toLowerCase().endsWith('.kmz')) {
-          kmzFileInput.files = files;
-          updateDropZoneWithFile(files[0]);
-        } else {
-          kmzUploadStatus.textContent = 'Apenas arquivos .kmz são permitidos.';
-          kmzUploadStatus.className = 'form-status error';
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+          dropZone.classList.remove('drag-over');
+        }, false);
+      });
+
+      // Handle dropped files
+      dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          // Ensure only KMZ files are accepted
+          if (files[0].name.toLowerCase().endsWith('.kmz')) {
+            kmzFileInput.files = files;
+            updateDropZoneWithFile(files[0]);
+          } else {
+            kmzUploadStatus.textContent = 'Apenas arquivos .kmz são permitidos.';
+            kmzUploadStatus.className = 'form-status error';
+          }
         }
-      }
-    });
-    
-    // Update drop zone when file is selected via click
-    kmzFileInput.addEventListener('change', () => {
-      if (kmzFileInput.files.length > 0) {
-        updateDropZoneWithFile(kmzFileInput.files[0]);
-      }
-    });
+      });
 
-    function updateDropZoneWithFile(file) {
+      // Update drop zone when file is selected via click
+      kmzFileInput.addEventListener('change', () => {
+        if (kmzFileInput.files.length > 0) {
+          updateDropZoneWithFile(kmzFileInput.files[0]);
+        }
+      });
+
+      function updateDropZoneWithFile(file) {
         if (file) {
-            dropZoneText.textContent = file.name;
-            dropZoneIcon.textContent = '📄';
-            dropZone.classList.add('has-file');
-            kmzUploadStatus.textContent = ''; // Clear previous status
+          dropZoneText.textContent = file.name;
+          dropZoneIcon.textContent = '📄';
+          dropZone.classList.add('has-file');
+          kmzUploadStatus.textContent = ''; // Clear previous status
         }
-    }
-    
-    function resetDropZone() {
+      }
+
+      function resetDropZone() {
         dropZoneText.textContent = 'Clique para selecionar';
         dropZoneIcon.textContent = '📤';
         dropZone.classList.remove('has-file');
         sidebarKmzUploadForm.reset();
-    }
-
-    sidebarKmzUploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!kmzFileInput.files || kmzFileInput.files.length === 0) {
-        kmzUploadStatus.textContent = 'Por favor, selecione um arquivo.';
-        kmzUploadStatus.className = 'form-status error';
-        return;
       }
 
-      const file = kmzFileInput.files[0];
-      const formData = new FormData();
-      formData.append('action', 'upload_standalone_kmz');
-      formData.append('kmz_file', file);
-
-      kmzUploadStatus.textContent = 'Enviando arquivo...';
-      kmzUploadStatus.className = 'form-status info';
-
-      try {
-        const response = await fetch('api/cities.php', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.ok) {
-          kmzUploadStatus.textContent = `✅ Sucesso! Salvo em: ${result.path}`;
-          kmzUploadStatus.className = 'form-status success';
-          setTimeout(resetDropZone, 2000); // Reset after 2 seconds
-
-          if (typeof saveRecentUpload === 'function' && typeof renderRecentUploadsPanel === 'function') {
-            const uploadInfo = {
-              city_name: 'Arquivo Avulso',
-              file_name: file.name,
-              file_path: result.path,
-              file_size: file.size,
-              uploaded_at: Date.now(),
-            };
-            await saveRecentUpload(uploadInfo);
-            renderRecentUploadsPanel();
-          }
-        } else {
-          throw new Error(result.error || 'Erro desconhecido no servidor.');
+      sidebarKmzUploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!kmzFileInput.files || kmzFileInput.files.length === 0) {
+          kmzUploadStatus.textContent = 'Por favor, selecione um arquivo.';
+          kmzUploadStatus.className = 'form-status error';
+          return;
         }
-      } catch (error) {
-        kmzUploadStatus.textContent = `❌ Erro: ${error.message}`;
-        kmzUploadStatus.className = 'form-status error';
-      }
+
+        const file = kmzFileInput.files[0];
+        const folderNameVal = document.getElementById('sidebarKmzFolderName')?.value || '';
+
+        const formData = new FormData();
+        formData.append('action', 'upload_standalone_kmz');
+        formData.append('kmz_file', file);
+        formData.append('folder_name', folderNameVal);
+
+        kmzUploadStatus.textContent = 'Enviando arquivo...';
+        kmzUploadStatus.className = 'form-status info';
+
+        try {
+          const response = await fetch('api/cities.php', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.ok) {
+            kmzUploadStatus.textContent = `✅ Sucesso! Salvo em: ${result.path}`;
+            kmzUploadStatus.className = 'form-status success';
+            setTimeout(resetDropZone, 2000); // Reset after 2 seconds
+
+            if (typeof saveRecentUpload === 'function' && typeof renderRecentUploadsPanel === 'function') {
+              const uploadInfo = {
+                city_name: folderNameVal || 'Arquivo Avulso',
+                file_name: file.name,
+                file_path: result.path,
+                file_size: file.size,
+                uploaded_at: Date.now(),
+              };
+              await saveRecentUpload(uploadInfo);
+              renderRecentUploadsPanel();
+            }
+          } else {
+            throw new Error(result.error || 'Erro desconhecido no servidor.');
+          }
+        } catch (error) {
+          kmzUploadStatus.textContent = `❌ Erro: ${error.message}`;
+          kmzUploadStatus.className = 'form-status error';
+        }
+      });
     });
-  });
   </script>
 
   <!-- ========== LIBS & SEU SCRIPT ========== -->
@@ -735,4 +749,5 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="assets/script.js?v=7"></script>
 </body>
+
 </html>

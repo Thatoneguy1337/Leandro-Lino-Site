@@ -348,12 +348,27 @@ try {
             json_error('Tipo de arquivo inválido. Apenas arquivos .kmz são permitidos.');
         }
 
-        // Cria um nome de diretório único, ex: c_6525d54b77a4
-        $unique_dir_name = 'c_' . uniqid();
+        // Verifica se foi enviado um nome de pasta
+        $custom_folder = trim($_POST['folder_name'] ?? '');
+        $unique_dir_name = '';
+
+        if (!empty($custom_folder)) {
+            // Sanitize: Apenas letras, números, - e _
+            $unique_dir_name = preg_replace('/[^a-zA-Z0-9_\-]/', '', $custom_folder);
+        }
+
+        // Se não informar nome ou se a sanitização resultar em vazio, gera ID único
+        if (empty($unique_dir_name)) {
+            $unique_dir_name = 'c_' . uniqid();
+        }
+
         $target_dir = $UPLOAD_DIR . '/' . $unique_dir_name . '/';
 
-        if (!mkdir($target_dir, 0775, true)) {
-            json_error('Falha ao criar o diretório de destino para o arquivo.');
+        // Cria diretório se não existir
+        if (!is_dir($target_dir)) {
+            if (!mkdir($target_dir, 0775, true)) {
+                json_error('Falha ao criar o diretório de destino para o arquivo.');
+            }
         }
 
         $destination = $target_dir . $original_name;
