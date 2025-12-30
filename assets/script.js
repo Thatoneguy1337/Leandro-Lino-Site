@@ -130,6 +130,7 @@ async function deleteFromDB(storeName, key) {
 const API_CITIES = 'api/cities.php';
 
 window.currentCityId = null; // Declare global variable
+window.userLocationMarker = null; // Marker da localização do usuário
 
 /* ----------------- Utils ----------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -186,7 +187,13 @@ function locateOnceAnimated() {
       console.log('✅ Geolocation success:', latlng);
       map.flyTo(latlng, Math.max(map.getZoom(), IS_MOBILE ? 18 : 15), { duration: 1.5 });
 
-      const tempMarker = L.circleMarker(latlng, {
+      // Remove marcação anterior se houver
+      if (window.userLocationMarker) {
+        map.removeLayer(window.userLocationMarker);
+      }
+
+      // Cria nova marcação permanente
+      window.userLocationMarker = L.circleMarker(latlng, {
         radius: 10,
         color: '#000',
         weight: 2,
@@ -194,14 +201,19 @@ function locateOnceAnimated() {
         fillOpacity: 0.8
       }).addTo(map);
 
-      tempMarker.bindPopup(`
-        <b>Sua Localização</b><br>
+      window.userLocationMarker.bindPopup(`
+        <b>Você está aqui</b><br>
         Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)}
       `).openPopup();
 
-      setTimeout(() => {
-        map.removeLayer(tempMarker);
-      }, 5000);
+      // Salvar localização no cache
+      localStorage.setItem('gv_user_location', JSON.stringify({
+        lat: latitude,
+        lng: longitude,
+        timestamp: Date.now()
+      }));
+
+      // Não removemos mais o marker com setTimeout
 
       setStatus('✅ Localização encontrada!');
       showLoading(false);
@@ -228,7 +240,7 @@ function locateOnceAnimated() {
     },
     {
       enableHighAccuracy: true,
-      timeout: 20000, // Increased timeout to 20 seconds
+      timeout: 20000,
       maximumAge: 0
     }
   );
@@ -402,6 +414,37 @@ function restoreLastSession() {
 
     window.restoredState = state;
     setStatus('🔄 Sessão anterior restaurada');
+
+    // Restaurar localização do usuário se existir e for recente (ex: 24h)
+    try {
+      const savedLoc = localStorage.getItem('gv_user_location');
+      if (savedLoc) {
+        const locData = JSON.parse(savedLoc);
+        if (Date.now() - (locData.timestamp || 0) < 24 * 60 * 60 * 1000) {
+          const latlng = [locData.lat, locData.lng];
+
+          if (window.userLocationMarker) {
+            map.removeLayer(window.userLocationMarker);
+          }
+
+          window.userLocationMarker = L.circleMarker(latlng, {
+            radius: 10,
+            color: '#000',
+            weight: 2,
+            fillColor: '#3388ff',
+            fillOpacity: 0.8
+          }).addTo(map);
+
+          window.userLocationMarker.bindPopup(`
+            <b>Você está aqui (Restaurado)</b><br>
+            Lat: ${locData.lat.toFixed(6)}, Lon: ${locData.lng.toFixed(6)}
+          `);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao restaurar localização do usuário:', e);
+    }
+
     return state; // Return the whole state object
 
   } catch (error) {
@@ -1153,8 +1196,13 @@ async function renderFromProcessed(data, cityHint = "") {
     refreshCounters();
 
     if (boundsLines.isValid()) {
-      map.fitBounds(boundsLines, { padding: [48, 48] });
-      if (map.getZoom() > MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      // Mesma lógica do parseKML: se usuário está localizado, não mexemos no zoom/centro
+      if (window.userLocationMarker) {
+        console.log('📍 Usuário localizado (cache): mantendo zoom/centro atual.');
+      } else {
+        map.fitBounds(boundsLines, { padding: [48, 48] });
+        if (map.getZoom() > MIN_START_ZOOM) map.setZoom(MIN_START_ZOOM);
+      }
     }
 
     updateLOD();
@@ -2695,16 +2743,27 @@ async function parseKML(text, cityHint = "") {
       const sw = totalBounds.getSouthWest();
       const distance = ne.distanceTo(sw); // distance in meters
 
-      // If all points are very close, don't zoom in too far.
-      // Set a fixed zoom instead of fitting bounds.
-      if (distance < 50) {
-        map.flyTo(totalBounds.getCenter(), 16, { duration: 0.8 }); // Use flyTo for a smooth animation
-      } else {
-        map.fitBounds(totalBounds, { padding: [48, 48] });
-      }
+      // Se usuário já tem localização marcada (e o mapa já foi manipulado por ele), não forçamos zoom total
+      // Porém, se for o primeiro load, pode ser interessante. 
+      // A regra solicitada é: não apagar onde o cliente estava.
+      // Então, se window.userLocationMarker existir, NÃO mexemos no view.
 
-      if (map.getZoom() < MIN_START_ZOOM) {
-        map.setZoom(MIN_START_ZOOM);
+      if (window.userLocationMarker) {
+        console.log('📍 Usuário localizado: mantendo zoom/centro atual.');
+        // Opcional: garantir que o mapa esteja centralizado no usuário se estiver muito longe?
+        // Por via das dúvidas, respeitamos o que está na tela.
+      } else {
+        // If all points are very close, don't zoom in too far.
+        // Set a fixed zoom instead of fitting bounds.
+        if (distance < 50) {
+          map.flyTo(totalBounds.getCenter(), 16, { duration: 0.8 });
+        } else {
+          map.fitBounds(totalBounds, { padding: [48, 48] });
+        }
+
+        if (map.getZoom() < MIN_START_ZOOM) {
+          map.setZoom(MIN_START_ZOOM);
+        }
       }
     }
 
