@@ -20,6 +20,49 @@
   <link rel="stylesheet" href="assets/styles.css?v=5" />
   <!-- Favicon com id para ser atualizado junto da logo -->
   <link id="favicon" rel="icon" type="image/png" href="assets/img/image.png" />
+  <style>
+    .city-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: var(--panel-2);
+      transition: all 0.2s ease;
+    }
+    .city-item:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .city-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .city-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .system-loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 
 <body>
@@ -88,6 +131,24 @@
           </div>
           <div id="sidebarKmzUploadStatus" class="form-status" style="margin-top: 0.75rem;"></div>
         </form>
+      </section>
+
+      <!-- ========== CIDADES ========== -->
+      <section class="panel-section" aria-labelledby="sec-cities-sidebar">
+        <h2 id="sec-cities-sidebar">🌆 Cidades</h2>
+
+        <div class="row gap">
+          <div class="search small" style="flex:1">
+            <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…" aria-label="Buscar cidade ou bairro" />
+          </div>        
+        </div>
+
+        <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis" style="margin-top:8px; max-height: 280px; overflow:auto;">
+          <div class="empty">
+            <div class="empty-ico">⏳</div>
+            <p>Inicializando sistema...</p>
+          </div>
+        </div>
       </section>
 
       <!-- ========== MENSAGEM DA HOME ========== -->
@@ -755,6 +816,195 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="assets/script.js?v=7"></script>
   <script src="assets/city-manager.js"></script>
+
+  <script>
+    /* ========= SIDEBAR CITY PICKER ========= */
+    (function() {
+      const API_URL = 'api/cities.php';
+
+      async function apiListCities() {
+        try {
+          const response = await fetch(`${API_URL}?action=list`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          if (data.ok && Array.isArray(data.data)) return data.data;
+          throw new Error('Invalid API response');
+        } catch (error) {
+          console.error('❌ Error listing cities:', error);
+          throw error;
+        }
+      }
+
+      async function renderCityPicker(filter = '') {
+        const list = document.getElementById('cityPickerList');
+        const searchTerm = (filter || '').trim().toLowerCase();
+
+        if (!list) {
+          console.error('❌ Elemento cityPickerList não encontrado');
+          return;
+        }
+
+        try {
+          list.innerHTML = `
+            <div class="empty">
+              <div class="empty-ico"><div class="system-loading"></div></div>
+              <p>Carregando cidades...</p>
+            </div>`;
+
+          const items = await apiListCities();
+          
+          const filteredItems = items.filter(city =>
+            !searchTerm ||
+            city.name.toLowerCase().includes(searchTerm) ||
+            (city.prefix || '').toLowerCase().includes(searchTerm) ||
+            (city.file?.name || '').toLowerCase().includes(searchTerm)
+          ).sort((a, b) => a.name.localeCompare(b.name));
+
+          if (filteredItems.length === 0) {
+            list.innerHTML = `
+              <div class="empty">
+                <div class="empty-ico">🔍</div>
+                <p>Nenhuma cidade encontrada</p>
+                ${searchTerm ? '<small>Tente outro termo</small>' : ''}
+              </div>`;
+            return;
+          }
+
+          list.innerHTML = filteredItems.map(city => `
+            <div class="city-item" role="listitem" id="sidebar-city-item-${city.id}">
+              <div class="city-info">
+                <div class="city-name-view">
+                    <div class="city-name">${city.name}</div>
+                    <small class="muted">
+                      Prefixo: <b>${city.prefix || 'N/A'}</b> • ${city.file?.name || 'sem arquivo'}
+                    </small>
+                </div>
+                <div class="city-name-edit" style="display: none; flex: 1;">
+                    <input type="text" class="input-flat" value="${city.name}" style="width: 100%;"/>
+                </div>
+              </div>
+              <div class="city-actions view-mode" style="display: flex; gap: 4px;">
+                <button class="btn-action" data-action="edit" data-id="${city.id}" title="Editar nome">✏️</button>
+                <button class="btn-action danger" data-action="delete" data-id="${city.id}" data-name="${city.name}" title="Excluir cidade">✕</button>
+              </div>
+              <div class="city-actions edit-mode" style="display: none; gap: 4px;">
+                <button class="btn-action" data-action="save" data-id="${city.id}" title="Salvar">✔️</button>
+                <button class="btn-action" data-action="cancel" data-id="${city.id}" title="Cancelar">✖️</button>
+              </div>
+            </div>
+          `).join('');
+
+          // Event Delegation for all actions
+          list.addEventListener('click', async (e) => {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+
+            const action = target.dataset.action;
+            const cityId = target.dataset.id;
+            const item = document.getElementById(`sidebar-city-item-${cityId}`);
+
+            if (action === 'delete') {
+              const cityName = target.dataset.name;
+              if (!confirm(`Tem certeza que deseja excluir a cidade "${cityName}"?\n\nEsta ação não pode ser desfeita.`)) {
+                return;
+              }
+              try {
+                target.textContent = '...';
+                target.disabled = true;
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', cityId);
+                const response = await fetch(API_URL, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!result.ok) throw new Error(result.error || 'Erro desconhecido');
+                item.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                item.style.opacity = '0';
+                item.style.transform = 'scale(0.95)';
+                setTimeout(() => renderCityPicker(document.getElementById('cityPickerSearch').value), 300);
+              } catch (error) {
+                console.error(`Erro ao excluir cidade:`, error);
+                alert(`Não foi possível excluir a cidade "${cityName}".\n\nMotivo: ${error.message}`);
+                target.textContent = '✕';
+                target.disabled = false;
+              }
+            } else if (action === 'edit') {
+                item.querySelector('.city-name-view').style.display = 'none';
+                item.querySelector('.city-actions.view-mode').style.display = 'none';
+                item.querySelector('.city-name-edit').style.display = 'block';
+                item.querySelector('.city-actions.edit-mode').style.display = 'flex';
+                item.querySelector('.city-name-edit input').focus();
+            } else if (action === 'cancel') {
+                item.querySelector('.city-name-view').style.display = 'block';
+                item.querySelector('.city-actions.view-mode').style.display = 'flex';
+                item.querySelector('.city-name-edit').style.display = 'none';
+                item.querySelector('.city-actions.edit-mode').style.display = 'none';
+            } else if (action === 'save') {
+                const input = item.querySelector('.city-name-edit input');
+                const newName = input.value.trim();
+                const originalName = item.querySelector('.city-name').textContent;
+
+                if (!newName || newName === originalName) {
+                    // If name is empty or unchanged, just cancel editing
+                    item.querySelector('[data-action="cancel"]').click();
+                    return;
+                }
+
+                try {
+                    target.textContent = '...';
+                    target.disabled = true;
+                    
+                    const formData = new FormData();
+                    formData.append('action', 'rename');
+                    formData.append('id', cityId);
+                    formData.append('newName', newName);
+
+                    const response = await fetch(API_URL, { method: 'POST', body: formData });
+                    const result = await response.json();
+                    if (!result.ok) throw new Error(result.error || 'Erro desconhecido');
+                    
+                    // Refresh list to show changes
+                    await renderCityPicker(document.getElementById('cityPickerSearch').value);
+
+                } catch (error) {
+                    console.error('Erro ao renomear cidade:', error);
+                    alert(`Não foi possível renomear a cidade.\n\nMotivo: ${error.message}`);
+                    target.textContent = '✔️';
+                    target.disabled = false;
+                }
+            }
+          });
+
+        } catch (error) {
+          console.error('Erro crítico no renderizador de cidades da sidebar:', error);
+          list.innerHTML = `
+            <div class="empty">
+              <div class="empty-ico">⚠️</div>
+              <p>Erro ao carregar cidades</p>
+              <small>${error.message}</small>
+              <small><button onclick="window.location.reload()" class="btn link" style="margin-top: 8px;">Recarregar</button></small>
+            </div>`;
+        }
+      }
+      
+      // Initial render and search setup
+      document.addEventListener('DOMContentLoaded', () => {
+        renderCityPicker();
+        
+        const searchInput = document.getElementById('cityPickerSearch');
+        if (searchInput) {
+          let searchTimeout;
+          searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => renderCityPicker(e.target.value), 300);
+          });
+        }
+      });
+      
+    })();
+  </script>
 </body>
 
 </html>

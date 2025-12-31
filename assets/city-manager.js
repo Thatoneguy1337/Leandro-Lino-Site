@@ -1,5 +1,3 @@
-
-<script>
 document.addEventListener('DOMContentLoaded', () => {
   // Elementos do DOM
   const citiesDialog = document.getElementById('citiesDialog');
@@ -123,4 +121,3 @@ document.addEventListener('DOMContentLoaded', () => {
   closeCitiesBtn.addEventListener('click', () => citiesDialog.close());
   okCitiesBtn.addEventListener('click', () => citiesDialog.close());
 });
-</script>

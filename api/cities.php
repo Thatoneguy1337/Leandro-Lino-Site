@@ -213,6 +213,87 @@ try {
         json_response(['ok' => true, 'message' => 'Cidade excluída com sucesso']);
     }
 
+    // ---------- RENOMEAR CIDADE ----------
+    if ($method === 'POST' && $action === 'rename') {
+        $id = trim($_POST['id'] ?? '');
+        $newName = trim($_POST['newName'] ?? '');
+
+        if (empty($id) || empty($newName)) {
+            json_error('ID da cidade e novo nome são obrigatórios');
+        }
+
+        // Security: Prevent directory traversal
+        if (basename($id) !== $id) {
+            json_error('ID atual inválido', 400);
+        }
+
+        // Sanitize the new name to create a valid folder name
+        $safeNewId = preg_replace('/[^a-zA-Z0-9_\-]/', '_', str_replace(' ', '_', $newName));
+        if (empty($safeNewId)) {
+            json_error('O novo nome fornecido é inválido.', 400);
+        }
+
+        $old_dir = $UPLOAD_DIR . '/' . $id;
+        $new_dir = $UPLOAD_DIR . '/' . $safeNewId;
+
+        if (!is_dir($old_dir)) {
+            json_error('A cidade atual não foi encontrada no sistema de arquivos.', 404);
+        }
+
+        if ($old_dir === $new_dir) {
+             // If only the display name changes, not the folder
+             $index = load_index();
+             $city_found = false;
+             foreach ($index as &$city) {
+                 if ($city['id'] === $id) {
+                     $city['name'] = $newName;
+                     $city_found = true;
+                     break;
+                 }
+             }
+             if($city_found) {
+                save_index($index);
+                json_response(['ok' => true, 'message' => 'Nome da cidade atualizado com sucesso (sem renomear pasta).', 'newName' => $newName, 'newId' => $id]);
+             } else {
+                json_error('Cidade não encontrada no índice para atualização do nome.', 404);
+             }
+        }
+
+        if (is_dir($new_dir)) {
+            json_error('Já existe uma cidade com este nome.', 409);
+        }
+
+        if (!rename($old_dir, $new_dir)) {
+            json_error('Falha ao renomear a pasta no servidor.', 500);
+        }
+
+        // Update index
+        $index = load_index();
+        $city_found_in_index = false;
+        foreach ($index as &$city) {
+            if ($city['id'] === $id) {
+                $city['id'] = $safeNewId;
+                $city['name'] = $newName; // Update the display name as well
+                $city_found_in_index = true;
+                break;
+            }
+        }
+
+        if ($city_found_in_index) {
+            save_index($index);
+        } else {
+            // If not in index, maybe it's just a folder. The folder is renamed, which is fine.
+        }
+
+        json_response([
+            'ok' => true, 
+            'message' => 'Cidade renomeada com sucesso!',
+            'oldId' => $id,
+            'newId' => $safeNewId,
+            'newName' => $newName
+        ]);
+    }
+
     // ---------- OBTER CIDADE ESPECÍFICA ----------
     if ($method === 'GET' && $action === 'get') {
         $id = $_GET['id'] ?? '';
