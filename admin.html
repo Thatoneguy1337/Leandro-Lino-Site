@@ -33,14 +33,17 @@
       background: var(--panel-2);
       transition: all 0.2s ease;
     }
+
     .city-item:hover {
       border-color: var(--primary);
       transform: translateY(-1px);
     }
+
     .city-info {
       min-width: 0;
       flex: 1;
     }
+
     .city-name {
       font-weight: 600;
       white-space: nowrap;
@@ -48,6 +51,7 @@
       text-overflow: ellipsis;
       margin-bottom: 4px;
     }
+
     .system-loading {
       display: inline-block;
       width: 16px;
@@ -58,9 +62,15 @@
       animation: spin 1s linear infinite;
       margin-right: 8px;
     }
+
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
@@ -139,11 +149,13 @@
 
         <div class="row gap">
           <div class="search small" style="flex:1">
-            <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…" aria-label="Buscar cidade ou bairro" />
-          </div>        
+            <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…"
+              aria-label="Buscar cidade ou bairro" />
+          </div>
         </div>
 
-        <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis" style="margin-top:8px; max-height: 280px; overflow:auto;">
+        <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis"
+          style="margin-top:8px; max-height: 280px; overflow:auto;">
           <div class="empty">
             <div class="empty-ico">⏳</div>
             <p>Inicializando sistema...</p>
@@ -819,7 +831,7 @@
 
   <script>
     /* ========= SIDEBAR CITY PICKER ========= */
-    (function() {
+    (function () {
       const API_URL = 'api/cities.php';
 
       async function apiListCities() {
@@ -855,7 +867,7 @@
             </div>`;
 
           const items = await apiListCities();
-          
+
           const filteredItems = items.filter(city =>
             !searchTerm ||
             city.name.toLowerCase().includes(searchTerm) ||
@@ -887,6 +899,7 @@
                 </div>
               </div>
               <div class="city-actions view-mode" style="display: flex; gap: 4px;">
+                <button class="btn-action primary" data-action="load" data-id="${city.id}" title="Carregar no mapa">📥</button>
                 <button class="btn-action" data-action="edit" data-id="${city.id}" title="Editar nome">✏️</button>
                 <button class="btn-action danger" data-action="delete" data-id="${city.id}" data-name="${city.name}" title="Excluir cidade">✕</button>
               </div>
@@ -906,7 +919,30 @@
             const cityId = target.dataset.id;
             const item = document.getElementById(`sidebar-city-item-${cityId}`);
 
-            if (action === 'delete') {
+            if (action === 'load') {
+              // Close sidebar on mobile
+              if (window.innerWidth < 1024) {
+                document.getElementById('kmzSidebar')?.classList.remove('open'); // Try explicit ID if exists
+                document.querySelector('.sidebar')?.classList.remove('open'); // Fallback class
+                document.body.classList.remove('sidebar-open');
+              }
+
+              try {
+                target.disabled = true;
+                // Assuming loadCityOnMap is available from assets/script.js
+                if (typeof loadCityOnMap === 'function') {
+                  await loadCityOnMap(cityId);
+                } else {
+                  alert('Função loadCityOnMap não encontrada.');
+                }
+              } catch (e) {
+                console.error(e);
+                alert('Erro ao carregar cidade: ' + e.message);
+              } finally {
+                target.disabled = false;
+              }
+
+            } else if (action === 'delete') {
               const cityName = target.dataset.name;
               if (!confirm(`Tem certeza que deseja excluir a cidade "${cityName}"?\n\nEsta ação não pode ser desfeita.`)) {
                 return;
@@ -931,49 +967,49 @@
                 target.disabled = false;
               }
             } else if (action === 'edit') {
-                item.querySelector('.city-name-view').style.display = 'none';
-                item.querySelector('.city-actions.view-mode').style.display = 'none';
-                item.querySelector('.city-name-edit').style.display = 'block';
-                item.querySelector('.city-actions.edit-mode').style.display = 'flex';
-                item.querySelector('.city-name-edit input').focus();
+              item.querySelector('.city-name-view').style.display = 'none';
+              item.querySelector('.city-actions.view-mode').style.display = 'none';
+              item.querySelector('.city-name-edit').style.display = 'block';
+              item.querySelector('.city-actions.edit-mode').style.display = 'flex';
+              item.querySelector('.city-name-edit input').focus();
             } else if (action === 'cancel') {
-                item.querySelector('.city-name-view').style.display = 'block';
-                item.querySelector('.city-actions.view-mode').style.display = 'flex';
-                item.querySelector('.city-name-edit').style.display = 'none';
-                item.querySelector('.city-actions.edit-mode').style.display = 'none';
+              item.querySelector('.city-name-view').style.display = 'block';
+              item.querySelector('.city-actions.view-mode').style.display = 'flex';
+              item.querySelector('.city-name-edit').style.display = 'none';
+              item.querySelector('.city-actions.edit-mode').style.display = 'none';
             } else if (action === 'save') {
-                const input = item.querySelector('.city-name-edit input');
-                const newName = input.value.trim();
-                const originalName = item.querySelector('.city-name').textContent;
+              const input = item.querySelector('.city-name-edit input');
+              const newName = input.value.trim();
+              const originalName = item.querySelector('.city-name').textContent;
 
-                if (!newName || newName === originalName) {
-                    // If name is empty or unchanged, just cancel editing
-                    item.querySelector('[data-action="cancel"]').click();
-                    return;
-                }
+              if (!newName || newName === originalName) {
+                // If name is empty or unchanged, just cancel editing
+                item.querySelector('[data-action="cancel"]').click();
+                return;
+              }
 
-                try {
-                    target.textContent = '...';
-                    target.disabled = true;
-                    
-                    const formData = new FormData();
-                    formData.append('action', 'rename');
-                    formData.append('id', cityId);
-                    formData.append('newName', newName);
+              try {
+                target.textContent = '...';
+                target.disabled = true;
 
-                    const response = await fetch(API_URL, { method: 'POST', body: formData });
-                    const result = await response.json();
-                    if (!result.ok) throw new Error(result.error || 'Erro desconhecido');
-                    
-                    // Refresh list to show changes
-                    await renderCityPicker(document.getElementById('cityPickerSearch').value);
+                const formData = new FormData();
+                formData.append('action', 'rename');
+                formData.append('id', cityId);
+                formData.append('newName', newName);
 
-                } catch (error) {
-                    console.error('Erro ao renomear cidade:', error);
-                    alert(`Não foi possível renomear a cidade.\n\nMotivo: ${error.message}`);
-                    target.textContent = '✔️';
-                    target.disabled = false;
-                }
+                const response = await fetch(API_URL, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!result.ok) throw new Error(result.error || 'Erro desconhecido');
+
+                // Refresh list to show changes
+                await renderCityPicker(document.getElementById('cityPickerSearch').value);
+
+              } catch (error) {
+                console.error('Erro ao renomear cidade:', error);
+                alert(`Não foi possível renomear a cidade.\n\nMotivo: ${error.message}`);
+                target.textContent = '✔️';
+                target.disabled = false;
+              }
             }
           });
 
@@ -988,11 +1024,11 @@
             </div>`;
         }
       }
-      
+
       // Initial render and search setup
       document.addEventListener('DOMContentLoaded', () => {
         renderCityPicker();
-        
+
         const searchInput = document.getElementById('cityPickerSearch');
         if (searchInput) {
           let searchTimeout;
@@ -1002,7 +1038,7 @@
           });
         }
       });
-      
+
     })();
   </script>
 </body>

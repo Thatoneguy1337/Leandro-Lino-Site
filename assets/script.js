@@ -2245,11 +2245,57 @@ function getPotencia(pm) {
 }
 function postoGroupByName(rawName, pm) {
   const n = (rawName || '').toUpperCase();
+
+  // Primeiro verifica o nome do posto
   if (/-FU\b/.test(n)) return 'FU';
   if (/-FA\b/.test(n)) return 'FA';
   if (/-RE\b/.test(n)) return 'RE';
+
+  // Verifica ExtendedData para campo "Objeto" (CPFL padrão)
+  for (const d of pm.querySelectorAll("ExtendedData SchemaData SimpleData")) {
+    const key = (d.getAttribute("name") || "").toLowerCase();
+    const val = (d.textContent || "").trim().toUpperCase();
+
+    if (key === "objeto") {
+      if (val.includes("FUSIVEL") || val.includes("FUSÍVEL")) return 'FU';
+      if (val.includes("RELIGADOR")) return 'RE';
+      if (val.includes("CHAVE") && !val.includes("FUSIVEL") && !val.includes("FUSÍVEL")) return 'FA';
+      if (val.includes("TRANSFORMADOR")) return 'KVA';
+    }
+
+    // Também verifica outros campos que possam indicar o tipo
+    if (key.includes("tipo") || key.includes("group") || key.includes("grupo") ||
+        key.includes("categoria") || key.includes("class")) {
+      if (val.includes("FU") || val.includes("FUSIVEL") || val.includes("FUSÍVEL")) return 'FU';
+      if (val.includes("FA") || val.includes("FACA")) return 'FA';
+      if (val.includes("RE") || val.includes("RELIGADOR")) return 'RE';
+    }
+  }
+
+  // Verifica o schema (kml_schema_ft_...)
+  const schemaUrl = pm.querySelector("ExtendedData SchemaData")?.getAttribute("schemaUrl");
+  if (schemaUrl) {
+    const schemaName = schemaUrl.toUpperCase();
+    if (schemaName.includes("FUSIVEL") || schemaName.includes("FUSÍVEL")) return 'FU';
+    if (schemaName.includes("RELIGADOR")) return 'RE';
+    if (schemaName.includes("CHAVE") && !schemaName.includes("FUSIVEL") && !schemaName.includes("FUSÍVEL")) return 'FA';
+    if (schemaName.includes("TRANSFORMADOR")) return 'KVA';
+  }
+
+  // Verifica o nome da pasta (Folder) pai
+  const folder = pm.closest("Folder");
+  if (folder) {
+    const folderName = (folder.querySelector(":scope > name")?.textContent || "").toUpperCase();
+    if (folderName.includes("FUSIVEL") || folderName.includes("FUSÍVEL")) return 'FU';
+    if (folderName.includes("RELIGADOR")) return 'RE';
+    if (folderName.includes("CHAVE") && !folderName.includes("FUSIVEL") && !folderName.includes("FUSÍVEL")) return 'FA';
+    if (folderName.includes("TRANSFORMADOR")) return 'KVA';
+  }
+
+  // Verifica se tem potência (KVA)
   const pot = getPotencia(pm);
   if (pot) return 'KVA';
+
   return 'OUTROS';
 }
 

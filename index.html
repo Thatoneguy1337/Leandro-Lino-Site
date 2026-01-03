@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -36,14 +37,17 @@
       background: var(--panel-2);
       transition: all 0.2s ease;
     }
+
     .city-item:hover {
       border-color: var(--primary);
       transform: translateY(-1px);
     }
+
     .city-info {
       min-width: 0;
       flex: 1;
     }
+
     .city-name {
       font-weight: 600;
       white-space: nowrap;
@@ -51,6 +55,7 @@
       text-overflow: ellipsis;
       margin-bottom: 4px;
     }
+
     .system-indicator {
       margin-left: 10px;
       padding: 2px 6px;
@@ -59,22 +64,25 @@
       font-weight: bold;
       border: 1px solid;
     }
+
     .mode-online {
       color: #28a745;
       background: #d4edda;
       border-color: #28a745;
     }
+
     .mode-mixed {
       color: #ffc107;
       background: #fff3cd;
       border-color: #ffc107;
     }
+
     .mode-offline {
       color: #dc3545;
       background: #f8d7da;
       border-color: #dc3545;
     }
-    
+
     /* Estilos para loading customizado */
     .system-loading {
       display: inline-block;
@@ -86,10 +94,17 @@
       animation: spin 1s linear infinite;
       margin-right: 8px;
     }
+
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
+
     .home-message-panel {
       background: var(--panel-1);
       padding: 12px 16px;
@@ -98,15 +113,18 @@
       border: 1px solid var(--border);
       position: relative;
     }
+
     .home-message-panel h3 {
       margin: 0 0 8px;
       font-size: 1rem;
     }
+
     .home-message-panel p {
       margin: 0;
       font-size: 0.9rem;
       line-height: 1.5;
     }
+
     .home-message-panel .close-btn {
       position: absolute;
       top: 8px;
@@ -119,6 +137,7 @@
     }
   </style>
 </head>
+
 <body>
 
   <!-- ========== SIDEBAR ========== -->
@@ -148,11 +167,13 @@
 
         <div class="row gap">
           <div class="search small" style="flex:1">
-            <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…" aria-label="Buscar cidade ou bairro" />
-          </div>        
+            <input id="cityPickerSearch" type="search" placeholder="Buscar cidade/bairro…"
+              aria-label="Buscar cidade ou bairro" />
+          </div>
         </div>
 
-        <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis" style="margin-top:8px; max-height: 280px; overflow:auto;">
+        <div id="cityPickerList" class="list-card" role="list" aria-label="Cidades disponíveis"
+          style="margin-top:8px; max-height: 280px; overflow:auto;">
           <div class="empty">
             <div class="empty-ico">⏳</div>
             <p>Inicializando sistema...</p>
@@ -237,22 +258,16 @@
 
     <div class="top-center" role="search">
       <form id="searchForm" class="search" autocomplete="off">
-        <input
-          id="searchInput"
-          type="tel"
-          inputmode="numeric"
-          pattern="\d*"
-          placeholder="Buscar CHAVE (só números, ex.: 27)"
-          aria-label="Buscar chave por número"
-          enterkeyhint="search"
-        />
+        <input id="searchInput" type="tel" inputmode="numeric" pattern="\d*"
+          placeholder="Buscar CHAVE (só números, ex.: 27)" aria-label="Buscar chave por número" enterkeyhint="search" />
         <button id="searchBtn" type="submit" class="icon-btn" aria-label="Buscar">🔎</button>
       </form>
       <div id="searchResults" class="search-results" role="listbox" aria-label="Resultados de busca"></div>
     </div>
 
     <div class="top-right" aria-label="Acessibilidade" role="group">
-      <button id="themeToggle" class="icon-btn" title="Modo escuro" aria-pressed="false" aria-label="Alternar tema">🌙</button>
+      <button id="themeToggle" class="icon-btn" title="Modo escuro" aria-pressed="false"
+        aria-label="Alternar tema">🌙</button>
     </div>
   </header>
 
@@ -281,11 +296,12 @@
     <div class="developer-credit">
       <small>
         <strong>Desenvolvido por</strong>
-         Leandro Lino © 2025
+        Leandro Lino © 2025
       </small>
     </div>
 
-    <div id="filesUpdatedAt" class="status-updates" style="text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+    <div id="filesUpdatedAt" class="status-updates"
+      style="text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
       Sistema híbrido - Conectando...
     </div>
 
@@ -305,7 +321,7 @@
   <!-- ========== SCRIPTS ========== -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  
+
   <!-- Script principal carregado de forma assíncrona -->
   <script src="assets/script.js"></script>
 
@@ -369,7 +385,7 @@
         }
 
         const data = await response.json();
-        
+
         if (data.ok && Array.isArray(data.data)) {
           console.log(`✅ API retornou ${data.data.length} cidades`);
           return data.data;
@@ -396,7 +412,7 @@
         }
 
         const data = await response.json();
-        
+
         if (data.ok && data.data) {
           return data.data;
         } else {
@@ -411,14 +427,14 @@
     async function loadCityOnMap(id) {
       try {
         console.log('🔍 Carregando cidade ID:', id);
-        
+
         const city = await apiGetCity(id);
         console.log('📋 Dados da cidade:', city);
-        
-        if (!city || !city.file || !city.file.url) { 
+
+        if (!city || !city.file || !city.file.url) {
           console.error('❌ Cidade sem arquivo:', city);
-          alert('Esta cidade não possui arquivo cadastrado.'); 
-          return; 
+          alert('Esta cidade não possui arquivo cadastrado.');
+          return;
         }
 
         const url = city.file.url;
@@ -444,12 +460,12 @@
           console.log('📦 Processando KMZ...');
           const blob = await response.blob();
           console.log('📊 Tamanho do blob:', blob.size);
-          
+
           const fileName = city.file.name || `${city.prefix || 'CITY'}.kmz`;
-          const file = new File([blob], fileName, { 
-            type: blob.type || 'application/vnd.google-earth.kmz' 
+          const file = new File([blob], fileName, {
+            type: blob.type || 'application/vnd.google-earth.kmz'
           });
-          
+
           // Tenta usar loadKMZ do script.js, fallback para alert
           if (typeof window.loadKMZ === 'function') {
             await window.loadKMZ(file);
@@ -460,7 +476,7 @@
           console.log('📄 Processando KML...');
           const text = await response.text();
           console.log('📝 Tamanho do texto:', text.length);
-          
+
           // Tenta usar parseKML do script.js, fallback para alert
           if (typeof window.parseKML === 'function') {
             await window.parseKML(text, name);
@@ -480,9 +496,9 @@
 
       } catch (error) {
         console.error('❌ Erro ao carregar cidade:', error);
-        
+
         let errorMessage = `Erro ao carregar cidade: ${error.message}`;
-        
+
         // Mensagens mais amigáveis para erros comuns
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
@@ -493,7 +509,7 @@
         } else if (error.message.includes('não disponível')) {
           errorMessage = 'Função de processamento não disponível. O mapa principal pode não estar carregado.';
         }
-        
+
         alert(errorMessage);
         updateStatus('Erro ao carregar arquivo');
       } finally {
@@ -507,10 +523,10 @@
       if (statusEl) {
         // Limita o tamanho da mensagem
         const maxLength = 40;
-        const shortMessage = message.length > maxLength 
-          ? message.substring(0, maxLength - 1) + '…' 
+        const shortMessage = message.length > maxLength
+          ? message.substring(0, maxLength - 1) + '…'
           : message;
-        
+
         statusEl.textContent = shortMessage;
         statusEl.title = message; // Tooltip com mensagem completa
       }
@@ -519,7 +535,7 @@
     function showLocalLoading(show, message = "Processando...") {
       const loadingEl = document.getElementById('loadingOverlay');
       const loadingText = document.getElementById('loadingText');
-      
+
       if (loadingEl) {
         loadingEl.classList.toggle('show', show);
       }
@@ -531,7 +547,7 @@
     function updateSystemIndicator() {
       const indicator = document.getElementById('systemIndicator');
       const subtitle = document.getElementById('systemSubtitle');
-      
+
       if (indicator) {
         indicator.className = 'system-indicator';
         if (currentMode === SYSTEM_MODE.ONLINE) {
@@ -717,6 +733,12 @@
             const cityId = btn.dataset.id;
             const cityName = btn.dataset.name;
 
+            // Fecha sidebar no mobile ao selecionar
+            if (window.innerWidth < 1024) {
+              document.getElementById('kmzSidebar')?.classList.remove('open');
+              document.body.classList.remove('sidebar-open');
+            }
+
             try {
               btn.textContent = 'Carregando...';
               btn.disabled = true;
@@ -761,23 +783,23 @@
     // ========= INICIALIZAÇÃO INDEPENDENTE =========
     async function initializeSystem() {
       if (systemInitialized) return;
-      
+
       console.log('🚀 Iniciando Mapa Lino - Sistema Independente');
       systemInitialized = true;
-      
+
       // Atualiza UI inicial
       updateStatus('Detectando ambiente...');
       updateSystemIndicator();
-      
+
       try {
         // Detecta modo do sistema
         currentMode = await detectSystemMode();
         updateSystemIndicator();
         updateFileMeta();
-        
+
         // Renderiza cidades
         await renderCityPicker();
-        
+
         // Configura busca em tempo real
         const searchInput = document.getElementById('cityPickerSearch');
         if (searchInput) {
@@ -787,16 +809,16 @@
             searchTimeout = setTimeout(() => renderCityPicker(e.target.value), 300);
           });
         }
-        
+
         // Atualiza status final
         const statusMessages = {
           [SYSTEM_MODE.ONLINE]: 'Sistema conectado e funcionando',
           [SYSTEM_MODE.MIXED]: 'Sistema em modo limitado',
           [SYSTEM_MODE.OFFLINE]: 'Sistema offline - Dados locais'
         };
-        
+
         updateStatus(statusMessages[currentMode]);
-        
+
         // Tenta carregar cidade padrão se online
         if (currentMode === SYSTEM_MODE.ONLINE) {
           setTimeout(async () => {
@@ -821,7 +843,7 @@
     // ========= INICIALIZAÇÃO IMEDIATA =========
     document.addEventListener('DOMContentLoaded', () => {
       console.log('📄 DOM carregado - Iniciando sistema independente...');
-      
+
       // Inicia imediatamente sem esperar script.js
       initializeSystem();
 
@@ -881,49 +903,50 @@
 
   <!-- Adicionado: Script para carregar a logo dinâmica -->
   <script>
-  (function () {
-    const DEFAULT_LOGO = 'assets/img/image.png';
-    const LATEST_LOGO_URL = 'api/latest_logo.php';
+    (function () {
+      const DEFAULT_LOGO = 'assets/img/image.png';
+      const LATEST_LOGO_URL = 'api/latest_logo.php';
 
-    // Função para aplicar a logo nos elementos da página
-    function applyLogo(src) {
-      // Adiciona um cache-bust para garantir que a imagem seja recarregada
-      const finalSrc = src + '?' + Date.now();
-      const brandLogo = document.getElementById('brandLogo');
-      const brandLogoTop = document.getElementById('brandLogoTop');
-      const loadingLogo = document.getElementById('loadingLogo');
-      // Favicon principal da página
-      const favicon = document.querySelector('link[rel="icon"]'); 
+      // Função para aplicar a logo nos elementos da página
+      function applyLogo(src) {
+        // Adiciona um cache-bust para garantir que a imagem seja recarregada
+        const finalSrc = src + '?' + Date.now();
+        const brandLogo = document.getElementById('brandLogo');
+        const brandLogoTop = document.getElementById('brandLogoTop');
+        const loadingLogo = document.getElementById('loadingLogo');
+        // Favicon principal da página
+        const favicon = document.querySelector('link[rel="icon"]');
 
-      if (brandLogo) brandLogo.src = finalSrc;
-      if (brandLogoTop) brandLogoTop.src = finalSrc;
-      if (loadingLogo) loadingLogo.src = finalSrc;
-      if (favicon) favicon.href = finalSrc;
-    }
+        if (brandLogo) brandLogo.src = finalSrc;
+        if (brandLogoTop) brandLogoTop.src = finalSrc;
+        if (loadingLogo) loadingLogo.src = finalSrc;
+        if (favicon) favicon.href = finalSrc;
+      }
 
-    // Função para buscar a logo mais recente
-    async function loadLatestLogo() {
-      try {
-        const response = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
-        const data = await response.json();
-        
-        if (data.ok && data.logoUrl) {
-          applyLogo(data.logoUrl);
-        } else {
-          // Se a API falhar ou não retornar URL, usa a padrão
+      // Função para buscar a logo mais recente
+      async function loadLatestLogo() {
+        try {
+          const response = await fetch(LATEST_LOGO_URL, { cache: 'no-store' });
+          const data = await response.json();
+
+          if (data.ok && data.logoUrl) {
+            applyLogo(data.logoUrl);
+          } else {
+            // Se a API falhar ou não retornar URL, usa a padrão
+            applyLogo(DEFAULT_LOGO);
+          }
+        } catch (error) {
+          // Se houver erro de rede, usa a logo padrão
+          console.warn('Não foi possível carregar a logo mais recente. Usando a padrão.', error);
           applyLogo(DEFAULT_LOGO);
         }
-      } catch (error) {
-        // Se houver erro de rede, usa a logo padrão
-        console.warn('Não foi possível carregar a logo mais recente. Usando a padrão.', error);
-        applyLogo(DEFAULT_LOGO);
       }
-    }
 
-    // Executa a verificação assim que o DOM estiver pronto
-    document.addEventListener('DOMContentLoaded', loadLatestLogo);
-  })();
+      // Executa a verificação assim que o DOM estiver pronto
+      document.addEventListener('DOMContentLoaded', loadLatestLogo);
+    })();
   </script>
 
 </body>
+
 </html>
