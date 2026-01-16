@@ -34,13 +34,13 @@ const MAX_STATUS_LEN = 40;
 /* ========================
    SISTEMA DE CACHE CLIENTE
    ======================== */
-const UPLOAD_CACHE_KEY = 'gv_last_uploads_v3';
-const MAP_STATE_KEY = 'gv_map_state_v3';
-const LAST_SESSION_KEY = 'gv_last_session_v2';
-const LAST_PROCESSED_MAP_DATA_KEY = 'gv_last_processed_map_metadata_v1';
-const LAST_PROCESSED_MAP_LINES_KEY = 'gv_processed_map_lines_v1';
-const LAST_PROCESSED_MAP_MARKERS_KEY = 'gv_processed_map_markers_v1';
-const LAST_PROCESSED_MAP_POLYGONS_KEY = 'gv_processed_map_polygons_v1'; // For polygons
+const UPLOAD_CACHE_KEY = 'gv_last_uploads_v4';
+const MAP_STATE_KEY = 'gv_map_state_v4';
+const LAST_SESSION_KEY = 'gv_last_session_v3';
+const LAST_PROCESSED_MAP_DATA_KEY = 'gv_last_processed_map_metadata_v2';
+const LAST_PROCESSED_MAP_LINES_KEY = 'gv_processed_map_lines_v2';
+const LAST_PROCESSED_MAP_MARKERS_KEY = 'gv_processed_map_markers_v2';
+const LAST_PROCESSED_MAP_POLYGONS_KEY = 'gv_processed_map_polygons_v2'; // For polygons
 const DB_NAME = 'GeoViewerCacheDB';
 const STORE_NAME_LINES = 'processedMapLines';
 const STORE_NAME_MARKERS = 'processedMapMarkers';
@@ -49,7 +49,7 @@ const STORE_NAME_POLYGONS = 'processedMapPolygons'; // For polygons
 // IndexedDB Helper Functions
 async function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 3); // Bump version to 3
+    const request = indexedDB.open(DB_NAME, 4); // Bump version to 4
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
@@ -354,7 +354,7 @@ async function saveProcessedMapData() {
       code: pm.code, // Save the code for reloading search index
       extra: {
         Alim: pm.m.__groupName,
-        Potência: pm.m.options.fillColor === POST_COLORS.KVA ? 'Sim' : undefined
+        Potência: (pm.m.__groupName === 'TR' || pm.m.__groupName === 'KVA') ? 'Sim' : undefined
       }
     });
   });
@@ -2079,7 +2079,7 @@ const palette = [
   "#f783ac", "#20c997", "#ffa94d", "#94d82d", "#66d9e8",
   "#748ffc", "#e599f7", "#12b886", "#e67700", "#5c7cfa",
 ];
-const POST_COLORS = { "FU": "#e03131", "FA": "#4f3b09", "RE": "#2f9e44", "KVA": "#845ef7", "OUTROS": "#868e96" };
+const POST_COLORS = { "FU": "#e03131", "FA": "#4f3b09", "RE": "#2f9e44", "KVA": "#845ef7", "TR": "#845ef7", "TRANSFORMADOR": "#845ef7", "OUTROS": "#868e96" };
 
 const groups = {}, colors = {}, order = [];
 const postGroups = {}, postOrder = [];
@@ -2260,15 +2260,16 @@ function postoGroupByName(rawName, pm) {
       if (val.includes("FUSIVEL") || val.includes("FUSÍVEL")) return 'FU';
       if (val.includes("RELIGADOR")) return 'RE';
       if (val.includes("CHAVE") && !val.includes("FUSIVEL") && !val.includes("FUSÍVEL")) return 'FA';
-      if (val.includes("TRANSFORMADOR")) return 'KVA';
+      if (val.includes("TRANSFORMADOR") || /\bTR\b/.test(val)) return 'TR';
     }
 
     // Também verifica outros campos que possam indicar o tipo
     if (key.includes("tipo") || key.includes("group") || key.includes("grupo") ||
-        key.includes("categoria") || key.includes("class")) {
+      key.includes("categoria") || key.includes("class")) {
       if (val.includes("FU") || val.includes("FUSIVEL") || val.includes("FUSÍVEL")) return 'FU';
       if (val.includes("FA") || val.includes("FACA")) return 'FA';
       if (val.includes("RE") || val.includes("RELIGADOR")) return 'RE';
+      if (val.includes("TRANSFORMADOR") || /\bTR\b/.test(val)) return 'TR';
     }
   }
 
@@ -2279,7 +2280,7 @@ function postoGroupByName(rawName, pm) {
     if (schemaName.includes("FUSIVEL") || schemaName.includes("FUSÍVEL")) return 'FU';
     if (schemaName.includes("RELIGADOR")) return 'RE';
     if (schemaName.includes("CHAVE") && !schemaName.includes("FUSIVEL") && !schemaName.includes("FUSÍVEL")) return 'FA';
-    if (schemaName.includes("TRANSFORMADOR")) return 'KVA';
+    if (schemaName.includes("TRANSFORMADOR") || /\bTR\b/.test(schemaName)) return 'TR';
   }
 
   // Verifica o nome da pasta (Folder) pai
@@ -2289,12 +2290,12 @@ function postoGroupByName(rawName, pm) {
     if (folderName.includes("FUSIVEL") || folderName.includes("FUSÍVEL")) return 'FU';
     if (folderName.includes("RELIGADOR")) return 'RE';
     if (folderName.includes("CHAVE") && !folderName.includes("FUSIVEL") && !folderName.includes("FUSÍVEL")) return 'FA';
-    if (folderName.includes("TRANSFORMADOR")) return 'KVA';
+    if (folderName.includes("TRANSFORMADOR") || /\bTR\b/.test(folderName)) return 'TR';
   }
 
   // Verifica se tem potência (KVA)
   const pot = getPotencia(pm);
-  if (pot) return 'KVA';
+  if (pot) return 'TR';
 
   return 'OUTROS';
 }
